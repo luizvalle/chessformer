@@ -71,6 +71,15 @@ class GDrive():
             q=f"name = '{file_name}' and mimeType = 'application/octet-stream' and '{parent_directory_id}' in parents and trashed = False"
         ).execute()
         return len(response.get('files', [])) > 0
+    
+    def get_files(self, parent_directory_id):
+        response = self.service.files().list(
+            q=f"mimeType = 'application/octet-stream' and '{parent_directory_id}' in parents and trashed = False",
+            spaces="drive",
+            fields="files(name)"
+        ).execute()
+        file_names = {returned_file.get("name") for returned_file in response.get("files", [])}
+        return file_names
 
 
 def file_name_from_link(download_link):
@@ -79,7 +88,7 @@ def file_name_from_link(download_link):
     return path
 
 
-def process_headers(gDrive, download_link):
+def process_headers(download_link):
     column_types = {
         "Event": "category",
         "Result": "category",
@@ -100,7 +109,6 @@ def process_headers(gDrive, download_link):
         "Termination": header["Termination"]}
         for header in headers]
     df = pd.DataFrame(data=games_info).astype(column_types)
-    gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
 
 
 def main():
@@ -113,25 +121,21 @@ def main():
     print(f"Found {len(download_links)} files to download.")
     print("Checking how many were already processed...")
 
-    unprocessed_links = list()
-    for download_link in tqdm(download_links):
-        file_name = file_name_from_link(download_link)
-        if not gDrive.is_file(PARENT_DIR_ID, file_name):
-            unprocessed_links.append(download_link)
+    existing_files = gDrive.get_files(PARENT_DIR_ID)
+    unprocessed_links = [download_link for download_link in tqdm(download_links)
+            if file_name_from_link(download_link) not in existing_files]
 
     print(f"{len(download_links) - len(unprocessed_links)} files already processed.")
     print(f"Processing remaining {len(unprocessed_links)} files...")
 
-    bound_process_headers = partial(process_headers, gDrive)
-
-    with Pool(processes=N_PROCESSES) as pool:
-        result = pool.imap_unordered(
-            func=bound_process_headers,
-            iterable=unprocessed_links,
-            chunksize=CHUNK_SIZE)
-        for _ in tqdm(result, total=len(unprocessed_links)):
-            pass
-
+#     with Pool(processes=N_PROCESSES) as pool:
+#         result = pool.imap_unordered(
+#             func=process_headers,
+#             iterable=unprocessed_links,
+#             chunksize=CHUNK_SIZE)
+#         for _ in tqdm(result, total=len(unprocessed_links)):
+#             pass
+# 
 
 if __name__ == "__main__":
     main()
