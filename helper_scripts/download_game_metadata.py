@@ -1,15 +1,18 @@
 import pandas as pd
 import re
 import requests
+import multiprocess
 
 from chess_iterators import CompressedPgnHeaderIterator
 from gdrive import GDrive
 from tqdm import tqdm
+from multiprocess import Pool
 
 
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
-PARENT_DIR_ID = "1RDjDXbZffBU2b14ZrF3e1cRDUg5wGzC_"
+PARENT_DIR_ID = "1Cwnlq0ziqLP6h0LsZlrzs3lLTHGRDPLI"
 CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
+N_PROCESSES = multiprocess.cpu_count() - 1 if multiprocess.cpu_count() > 1 else 1
 
 
 def file_name_from_link(download_link):
@@ -18,7 +21,7 @@ def file_name_from_link(download_link):
     return path
 
 
-def process_headers(download_link, gDrive):
+def process_headers(download_link):
     column_types = {
             "Event": "category",
             "Result": "category",
@@ -38,6 +41,7 @@ def process_headers(download_link, gDrive):
         "Termination": header["Termination"]}
         for header in headers]
     df = pd.DataFrame(data=games_info).astype(column_types)
+    gDrive = GDrive(CREDENTIALS_JSON)
     gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
 
 
@@ -57,9 +61,9 @@ def main():
 
     print(f"{len(download_links) - len(unprocessed_links)} files already processed.")
     print(f"Processing remaining {len(unprocessed_links)} files...")
-
-    for download_link in tqdm(unprocessed_links, desc="", position=0, leave=True):
-        process_headers(download_link, gDrive)
+    print(f"Using {N_PROCESSES} processes.")
+    with Pool(N_PROCESSES) as pool:
+        list(tqdm(pool.imap(process_headers, unprocessed_links), total=len(unprocessed_links)))
 
 
 if __name__ == "__main__":
