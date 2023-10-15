@@ -9,8 +9,8 @@ class CompressedPgnHeaderIterator:
         dctx = zstd.ZstdDecompressor()
         # Stream the results so we do not load everything
         # into memory at once
-        response = requests.get(url=download_link, stream=True)
-        reader = dctx.stream_reader(response.raw)
+        self.response = requests.get(url=download_link, stream=True)
+        reader = dctx.stream_reader(self.response.raw)
         self.text_stream = io.TextIOWrapper(reader, encoding="utf-8")
 
     def __iter__(self):
@@ -21,5 +21,6 @@ class CompressedPgnHeaderIterator:
         if header:
             return header
         else:
+            self.response.close()
             raise StopIteration
 

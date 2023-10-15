@@ -32,17 +32,20 @@ def process_headers(download_link):
             }
     new_file_name = file_name_from_link(download_link)
     headers = CompressedPgnHeaderIterator(download_link)
-    games_info = [{
-        "Event": header["Event"],
-        "Result": header["Result"],
-        "WhiteElo": int(header["WhiteElo"]) if header["WhiteElo"].isnumeric() else 0,
-        "BlackElo": int(header["BlackElo"]) if header["BlackElo"].isnumeric() else 0,
-        "TimeControl": header["TimeControl"],
-        "Termination": header["Termination"]}
-        for header in headers]
-    df = pd.DataFrame(data=games_info).astype(column_types)
-    gDrive = GDrive(CREDENTIALS_JSON)
-    gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
+    try:
+        games_info = [{
+            "Event": header["Event"],
+            "Result": header["Result"],
+            "WhiteElo": int(header["WhiteElo"]) if header["WhiteElo"].isnumeric() else 0,
+            "BlackElo": int(header["BlackElo"]) if header["BlackElo"].isnumeric() else 0,
+            "TimeControl": header["TimeControl"],
+            "Termination": header["Termination"]}
+            for header in headers]
+        df = pd.DataFrame(data=games_info).astype(column_types)
+        gDrive = GDrive(CREDENTIALS_JSON)
+        gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
+    except Exception as e:
+        print(f"Error processing {new_file_name}: {e}")
 
 
 def main():
@@ -57,13 +60,14 @@ def main():
 
     existing_files = gDrive.get_files(PARENT_DIR_ID)
     unprocessed_links = [download_link for download_link in download_links
-            if file_name_from_link(download_link) not in existing_files]
+            if f"{file_name_from_link(download_link)}.zstd" not in existing_files]
 
     print(f"{len(download_links) - len(unprocessed_links)} files already processed.")
     print(f"Processing remaining {len(unprocessed_links)} files...")
     print(f"Using {N_PROCESSES} processes.")
+    chunk_size = 1
     with Pool(N_PROCESSES) as pool:
-        list(tqdm(pool.imap(process_headers, unprocessed_links), total=len(unprocessed_links)))
+        list(tqdm(pool.imap(process_headers, unprocessed_links, chunksize=chunk_size), total=len(unprocessed_links)))
 
 
 if __name__ == "__main__":
