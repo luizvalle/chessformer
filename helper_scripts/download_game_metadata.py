@@ -10,7 +10,7 @@ from multiprocess import Pool, RLock
 
 
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
-PARENT_DIR_ID = "1RDjDXbZffBU2b14ZrF3e1cRDUg5wGzC_"
+PARENT_DIR_ID = "1Cwnlq0ziqLP6h0LsZlrzs3lLTHGRDPLI"
 CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
 N_PROCESSES = 5
 
