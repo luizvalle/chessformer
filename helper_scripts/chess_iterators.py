@@ -33,7 +33,6 @@ class CompressedPgnHeaderIterator:
         if header:
             return header
         else:
-            self.response.close()
             raise StopIteration
 
     def total_num_bytes_read(self):

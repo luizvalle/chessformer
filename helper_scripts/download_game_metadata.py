@@ -6,11 +6,11 @@ import multiprocess
 from chess_iterators import CompressedPgnHeaderIterator
 from gdrive import GDrive
 from tqdm.auto import tqdm
-from multiprocess import Pool
+from multiprocess import Pool, RLock
 
 
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
-PARENT_DIR_ID = "1Cwnlq0ziqLP6h0LsZlrzs3lLTHGRDPLI"
+PARENT_DIR_ID = "1RDjDXbZffBU2b14ZrF3e1cRDUg5wGzC_"
 CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
 N_PROCESSES = 5
 
@@ -21,8 +21,9 @@ def file_name_from_link(download_link):
     return path
 
 
-def process_headers(arg):
-    i, download_link = arg
+def process_headers(args):
+    tqdm_pos, download_link = args
+    lock = tqdm.get_lock()
     column_types = {
             "Event": "category",
             "Result": "category",
@@ -35,26 +36,37 @@ def process_headers(arg):
     headers = CompressedPgnHeaderIterator(download_link)
     games_info = list()
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
-    with tqdm(total=headers.total_num_bytes(), position=i + 1, unit='B', unit_scale=True, leave=False, desc=date, ncols=80) as pbar:
-        try:
-            for header in headers:
-                info = {
-                        "Event": header["Event"],
-                        "Result": header["Result"],
-                        "WhiteElo": int(header["WhiteElo"]) if header["WhiteElo"].isnumeric() else 0,
-                        "BlackElo": int(header["BlackElo"]) if header["BlackElo"].isnumeric() else 0,
-                        "TimeControl": header["TimeControl"],
-                        "Termination": header["Termination"]
-                        }
-                games_info.append(info)
-                update_value = headers.total_num_bytes_read() - pbar.n
-                update_value = update_value if pbar.n + update_value <= headers.total_num_bytes() else headers.total_num_bytes() - pbar.n
-                pbar.update(update_value)
-            df = pd.DataFrame(data=games_info).astype(column_types)
-            gDrive = GDrive(CREDENTIALS_JSON)
-            gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
-        except Exception as e:
-            print(e)
+    lock.acquire(block=True)
+    pbar = tqdm(total=headers.total_num_bytes(), unit='B', position=tqdm_pos, unit_scale=True, leave=False, desc=date,
+                ncols=100)
+    lock.release()
+    try:
+        for header in headers:
+            info = {
+                    "Event": header["Event"],
+                    "Result": header["Result"],
+                    "WhiteElo": int(header["WhiteElo"]) if header["WhiteElo"].isnumeric() else 0,
+                    "BlackElo": int(header["BlackElo"]) if header["BlackElo"].isnumeric() else 0,
+                    "TimeControl": header["TimeControl"],
+                    "Termination": header["Termination"]
+                    }
+            games_info.append(info)
+            update_value = headers.total_num_bytes_read() - pbar.n
+            update_value = update_value if pbar.n + update_value <= headers.total_num_bytes() else headers.total_num_bytes() - pbar.n
+            lock.acquire(block=True)
+            pbar.update(update_value)
+            lock.release()
+        df = pd.DataFrame(data=games_info).astype(column_types)
+        gDrive = GDrive(CREDENTIALS_JSON)
+        gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
+    except Exception as e:
+        output_message = f"Error processing {date}: {e}"
+    else:
+        output_message = f"Successfully processed {date}."
+    lock.acquire(block=True)
+    pbar.close()
+    lock.release()
+    return output_message
 
 
 def main():
@@ -70,15 +82,19 @@ def main():
     existing_files = gDrive.get_files(PARENT_DIR_ID)
     unprocessed_links = [download_link for download_link in download_links
             if f"{file_name_from_link(download_link)}.zstd" not in existing_files]
-    unprocessed_links = list(enumerate(unprocessed_links)) # Add index so that tqdm can place the progress bar
 
     print(f"{len(download_links) - len(unprocessed_links)} files already processed.", flush=True)
     print(f"Processing remaining {len(unprocessed_links)} files...", flush=True)
-    print(f"Using {N_PROCESSES} processes.")
+    print(f"Using {N_PROCESSES} processes.", flush=True)
+
+    unprocessed_links = [(i + 1, link) for i, link in enumerate(unprocessed_links)] # Add position information
 
     chunk_size = 1
-    with Pool(N_PROCESSES) as pool:
-        list(tqdm(pool.imap_unordered(process_headers, unprocessed_links, chunksize=chunk_size), desc="Overall progress", total=len(unprocessed_links), position=0, ncols=80, leave=True))
+    tqdm.set_lock(RLock()) # To manage output concurency
+    lock = tqdm.get_lock()
+    with Pool(N_PROCESSES, initializer=tqdm.set_lock, initargs=(lock,)) as pool:
+        list(tqdm(pool.imap_unordered(process_headers, unprocessed_links, chunksize=chunk_size), desc="Links processed",
+                  total=len(unprocessed_links), position=0, ncols=100, leave=True))
 
 
 if __name__ == "__main__":
