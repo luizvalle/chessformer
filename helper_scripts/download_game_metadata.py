@@ -12,7 +12,7 @@ from multiprocess import Pool
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
 PARENT_DIR_ID = "1Cwnlq0ziqLP6h0LsZlrzs3lLTHGRDPLI"
 CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
-N_PROCESSES = multiprocess.cpu_count() - 1 if multiprocess.cpu_count() > 1 else 1
+N_PROCESSES = 5
 
 
 def file_name_from_link(download_link):
