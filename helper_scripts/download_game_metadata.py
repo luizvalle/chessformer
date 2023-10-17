@@ -6,7 +6,7 @@ import multiprocess
 from chess_iterators import CompressedPgnHeaderIterator
 from gdrive import GDrive
 from tqdm.auto import tqdm
-from multiprocess import Pool, RLock
+from multiprocess import Pool, RLock, freeze_support
 
 
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
@@ -36,10 +36,9 @@ def process_headers(args):
     headers = CompressedPgnHeaderIterator(download_link)
     games_info = list()
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
-    lock.acquire(block=True)
-    pbar = tqdm(total=headers.total_num_bytes(), unit='B', position=tqdm_pos, unit_scale=True, leave=False, desc=date,
+    with lock:
+        pbar = tqdm(total=headers.total_num_bytes(), unit='B', position=tqdm_pos, unit_scale=True, leave=False, desc=date,
                 ncols=100)
-    lock.release()
     try:
         for header in headers:
             info = {
@@ -53,9 +52,8 @@ def process_headers(args):
             games_info.append(info)
             update_value = headers.total_num_bytes_read() - pbar.n
             update_value = update_value if pbar.n + update_value <= headers.total_num_bytes() else headers.total_num_bytes() - pbar.n
-            lock.acquire(block=True)
-            pbar.update(update_value)
-            lock.release()
+            with lock:
+                pbar.update(update_value)
         df = pd.DataFrame(data=games_info).astype(column_types)
         gDrive = GDrive(CREDENTIALS_JSON)
         gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
@@ -63,14 +61,15 @@ def process_headers(args):
         output_message = f"Error processing {date}: {e}"
     else:
         output_message = f"Successfully processed {date}."
-    lock.acquire(block=True)
-    pbar.close()
-    lock.release()
+    finally:
+        with lock:
+            pbar.close()
     return output_message
 
 
-def main():
-    gDrive = GDrive(CREDENTIALS_JSON)
+if __name__ == "__main__":
+    freeze_support() # Support for Windows
+    tqdm.set_lock(RLock()) # To manage output concurency
 
     download_links = sorted(
         requests.get(DOWNLOAD_LIST).text.split('\n'),
@@ -79,6 +78,7 @@ def main():
     print(f"Found {len(download_links)} files to download.", flush=True)
     print("Checking how many were already processed...", flush=True)
 
+    gDrive = GDrive(CREDENTIALS_JSON)
     existing_files = gDrive.get_files(PARENT_DIR_ID)
     unprocessed_links = [download_link for download_link in download_links
             if f"{file_name_from_link(download_link)}.zstd" not in existing_files]
@@ -90,13 +90,8 @@ def main():
     unprocessed_links = [(i + 1, link) for i, link in enumerate(unprocessed_links)] # Add position information
 
     chunk_size = 1
-    tqdm.set_lock(RLock()) # To manage output concurency
     lock = tqdm.get_lock()
     with Pool(N_PROCESSES, initializer=tqdm.set_lock, initargs=(lock,)) as pool:
         list(tqdm(pool.imap_unordered(process_headers, unprocessed_links, chunksize=chunk_size), desc="Links processed",
                   total=len(unprocessed_links), position=0, ncols=100, leave=True))
-
-
-if __name__ == "__main__":
-    main()
 
