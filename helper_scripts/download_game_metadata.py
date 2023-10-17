@@ -23,7 +23,6 @@ def file_name_from_link(download_link):
 
 def process_headers(args):
     tqdm_pos, download_link = args
-    lock = tqdm.get_lock()
     column_types = {
             "Event": "category",
             "Result": "category",
@@ -36,9 +35,8 @@ def process_headers(args):
     headers = CompressedPgnHeaderIterator(download_link)
     games_info = list()
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
-    with lock:
-        pbar = tqdm(total=headers.total_num_bytes(), unit='B', position=tqdm_pos, unit_scale=True, leave=False, desc=date,
-                ncols=100)
+    pbar = tqdm(total=headers.total_num_bytes(), unit='B', position=tqdm_pos, unit_scale=True, leave=False, desc=date,
+            ncols=100)
     try:
         for header in headers:
             info = {
@@ -52,18 +50,17 @@ def process_headers(args):
             games_info.append(info)
             update_value = headers.total_num_bytes_read() - pbar.n
             update_value = update_value if pbar.n + update_value <= headers.total_num_bytes() else headers.total_num_bytes() - pbar.n
-            with lock:
-                pbar.update(update_value)
+            pbar.update(update_value)
         df = pd.DataFrame(data=games_info).astype(column_types)
         gDrive = GDrive(CREDENTIALS_JSON)
         gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
     except Exception as e:
-        output_message = f"Error processing {date}: {e}"
+        output_message = f"Error processing {date}: '{e}'."
     else:
         output_message = f"Successfully processed {date}."
     finally:
-        with lock:
-            pbar.close()
+        pbar.write(output_message)
+        pbar.close()
     return output_message
 
 
@@ -75,17 +72,17 @@ if __name__ == "__main__":
         requests.get(DOWNLOAD_LIST).text.split('\n'),
         reverse=False)
 
-    print(f"Found {len(download_links)} files to download.", flush=True)
-    print("Checking how many were already processed...", flush=True)
+    tqdm.write(f"Found {len(download_links)} files to download.")
+    tqdm.write("Checking how many were already processed...")
 
     gDrive = GDrive(CREDENTIALS_JSON)
     existing_files = gDrive.get_files(PARENT_DIR_ID)
     unprocessed_links = [download_link for download_link in download_links
             if f"{file_name_from_link(download_link)}.zstd" not in existing_files]
 
-    print(f"{len(download_links) - len(unprocessed_links)} files already processed.", flush=True)
-    print(f"Processing remaining {len(unprocessed_links)} files...", flush=True)
-    print(f"Using {N_PROCESSES} processes.", flush=True)
+    tqdm.write(f"{len(download_links) - len(unprocessed_links)} files already processed.")
+    tqdm.write(f"Processing remaining {len(unprocessed_links)} files...")
+    tqdm.write(f"Using {N_PROCESSES} processes.")
 
     unprocessed_links = [(i + 1, link) for i, link in enumerate(unprocessed_links)] # Add position information
 
