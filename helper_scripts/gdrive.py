@@ -25,8 +25,9 @@ class GDrive():
                 "name": f"{file_name}.{compression}",
                 "parents": [parent_directory_id]
                 }
+        # Chunk size has to be a multiple of 256 but be below 5MB
         media = MediaIoBaseUpload(
-            buf, mimetype="application/octet-stream", chunksize=5e6, resumable=True)
+            buf, mimetype="application/octet-stream", chunksize=2048*1024, resumable=True)
         request = self.service.files().create(media_body=media, body=metadata)
         response = None
         while response is None:
