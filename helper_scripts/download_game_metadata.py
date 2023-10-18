@@ -2,11 +2,12 @@ import pandas as pd
 import re
 import requests
 import multiprocess
+import sys
 
 from chess_iterators import CompressedPgnHeaderIterator
 from gdrive import GDrive
 from tqdm.auto import tqdm
-from multiprocess import Pool, RLock, freeze_support
+from multiprocess import Pool, RLock, freeze_support, current_process
 
 
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
@@ -21,8 +22,8 @@ def file_name_from_link(download_link):
     return path
 
 
-def process_headers(args):
-    tqdm_pos, download_link = args
+def process_headers(download_link):
+    tqdm_pos = current_process()._identity[0] # Index of the current process
     column_types = {
             "Event": "category",
             "Result": "category",
@@ -59,7 +60,6 @@ def process_headers(args):
     else:
         output_message = f"Successfully processed {date}."
     finally:
-        pbar.write(output_message)
         pbar.close()
     return output_message
 
@@ -84,11 +84,14 @@ if __name__ == "__main__":
     tqdm.write(f"Processing remaining {len(unprocessed_links)} files...")
     tqdm.write(f"Using {N_PROCESSES} processes.")
 
-    unprocessed_links = [(i + 1, link) for i, link in enumerate(unprocessed_links)] # Add position information
-
     chunk_size = 1
     lock = tqdm.get_lock()
     with Pool(N_PROCESSES, initializer=tqdm.set_lock, initargs=(lock,)) as pool:
-        list(tqdm(pool.imap_unordered(process_headers, unprocessed_links, chunksize=chunk_size), desc="Links processed",
-                  total=len(unprocessed_links), position=0, ncols=100, leave=True))
+        results = pool.imap_unordered(
+                process_headers,
+                unprocessed_links,
+                chunksize=chunk_size)
+        for result in tqdm(results, desc="Links processed", total=len(unprocessed_links), position=0, ncols=100,
+                           leave=True):
+            tqdm.write(result, file=sys.stderr)
 
