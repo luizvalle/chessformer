@@ -1,3 +1,7 @@
+# Usage: python3 download_game_metadata.py
+#
+# Iterates through the headers of the PGN files and constructs a dataframe from
+# them. This dataframe is then stored in Google Drive using a service account.
 import pandas as pd
 import re
 import requests
