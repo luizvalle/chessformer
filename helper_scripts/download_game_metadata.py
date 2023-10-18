@@ -1,8 +1,9 @@
 # Usage: python3 download_game_metadata.py
 #
 # Iterates through the headers of the PGN files and constructs a dataframe from
-# them. This dataframe is then stored in Google Drive using a service account.
+# them. This dataframe is then stored in Google Drive.
 import pandas as pd
+import numpy as np
 import re
 import requests
 import multiprocess
@@ -17,7 +18,7 @@ from multiprocess import Pool, RLock, freeze_support, current_process
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
 PARENT_DIR_ID = "1Cwnlq0ziqLP6h0LsZlrzs3lLTHGRDPLI"
 CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
-N_PROCESSES = 5
+N_PROCESSES = 4
 
 
 def file_name_from_link(download_link):
@@ -36,6 +37,14 @@ def process_headers(download_link):
             "TimeControl": "category",
             "Termination": "category"
             }
+    columns = [
+            "Event",
+            "Result",
+            "WhiteElo",
+            "BlackElo",
+            "TimeControl",
+            "Termination"
+            ]
     new_file_name = file_name_from_link(download_link)
     headers = CompressedPgnHeaderIterator(download_link)
     games_info = list()
@@ -44,19 +53,22 @@ def process_headers(download_link):
             ncols=100)
     try:
         for header in headers:
-            info = {
-                    "Event": header["Event"],
-                    "Result": header["Result"],
-                    "WhiteElo": int(header["WhiteElo"]) if header["WhiteElo"].isnumeric() else 0,
-                    "BlackElo": int(header["BlackElo"]) if header["BlackElo"].isnumeric() else 0,
-                    "TimeControl": header["TimeControl"],
-                    "Termination": header["Termination"]
-                    }
+            info = (
+                    header["Event"],
+                    header["Result"],
+                    int(header["WhiteElo"]) if header["WhiteElo"].isnumeric() else 0,
+                    int(header["BlackElo"]) if header["BlackElo"].isnumeric() else 0,
+                    header["TimeControl"],
+                    header["Termination"]
+                    )
             games_info.append(info)
             update_value = headers.total_num_bytes_read() - pbar.n
             update_value = update_value if pbar.n + update_value <= headers.total_num_bytes() else headers.total_num_bytes() - pbar.n
             pbar.update(update_value)
-        df = pd.DataFrame(data=games_info).astype(column_types)
+        df = pd.DataFrame(
+                data=games_info,
+                columns=columns).astype(column_types)
+        del games_info
         gDrive = GDrive(CREDENTIALS_JSON)
         gDrive.write_dataframe(df, PARENT_DIR_ID, new_file_name)
     except Exception as e:
