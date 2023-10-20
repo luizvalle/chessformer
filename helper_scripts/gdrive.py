@@ -3,7 +3,7 @@ import io
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaFileUpload
 
 class GDrive():
     def __init__(self, service_account_json_key_path):
@@ -27,7 +27,26 @@ class GDrive():
                 }
         # Chunk size has to be a multiple of 256 but be below 5MB
         media = MediaIoBaseUpload(
-            buf, mimetype="application/octet-stream", chunksize=2048*1024, resumable=True)
+            buf,
+            mimetype="application/octet-stream",
+            chunksize=2048*1024,
+            resumable=True)
+        request = self.service.files().create(media_body=media, body=metadata)
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+
+    def write_file(self, source_file_name, parent_directory_id, out_file_name):
+        metadata = {
+                "name": out_file_name,
+                "parents": [parent_directory_id]
+                }
+        # Chunk size has to be a multiple of 256 and be below 5MB
+        media = MediaFileUpload(
+            source_file_name,
+            mimetype="application/octet-stream",
+            chunksize=2048*1024,
+            resumable=True)
         request = self.service.files().create(media_body=media, body=metadata)
         response = None
         while response is None:
