@@ -28,12 +28,13 @@ CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
 SCRATCH_DIR = "./.scratch" # Where temporary data will be stored
 N_PROCESSES = 4
 MAX_QUEUE_SIZE = 1e6
-MAX_BUFFER_LEN = 1e6
+MAX_BUFFER_LEN = 1e5
+QUEUE_TIMEOUT = 60 # seconds
 
 
 def file_name_from_link(download_link):
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1)
-    path = f"{date}.parquet"
+    path = f"{date}.parquet.zstd"
     return path
 
 
@@ -48,23 +49,29 @@ def record_producer(download_link, queue):
                 leave=False,
                 desc=f"{date} (download)",
                 ncols=100)
-    for header in headers:
-        info = (
-                header["Event"],
-                header["Result"],
-                int(header["WhiteElo"]) if header["WhiteElo"].isnumeric() else 0,
-                int(header["BlackElo"]) if header["BlackElo"].isnumeric() else 0,
-                header["TimeControl"],
-                header["Termination"]
-                )
-        queue.put(info)
-        # Update progress bar
-        update_value = headers.total_num_bytes_read() - pbar.n
-        update_value = update_value if pbar.n + update_value <= headers.total_num_bytes() else headers.total_num_bytes() - pbar.n
-        pbar.update(update_value)
-    # Signal to the consumer that no more records will be produced
-    queue.put(None)
-    pbar.close()
+    try:
+        for header in headers:
+            info = (
+                    header["Event"],
+                    header["Result"],
+                    int(header["WhiteElo"]) if header["WhiteElo"].isnumeric() else 0,
+                    int(header["BlackElo"]) if header["BlackElo"].isnumeric() else 0,
+                    header["TimeControl"],
+                    header["Termination"]
+                    )
+            queue.put(info, block=True, timeout=QUEUE_TIMEOUT)
+            # Update progress bar
+            update_value = headers.total_num_bytes_read() - pbar.n
+            update_value = (update_value
+                            if pbar.n + update_value <= headers.total_num_bytes()
+                            else headers.total_num_bytes() - pbar.n)
+            pbar.update(update_value)
+    except Exception as e:
+        raise e
+    finally:
+        # Signal to the consumer that no more records will be produced
+        queue.put(None)
+        pbar.close()
 
 
 def record_consumer(scratch_file_path, queue):
@@ -84,34 +91,41 @@ def record_consumer(scratch_file_path, queue):
             "TimeControl",
             "Termination"
             ]
-    is_first_write = True
+    parquet_schema = pa.schema({
+        "Event": pa.dictionary(pa.int16(), pa.string()),
+        "Result": pa.dictionary(pa.int16(), pa.string()),
+        "WhiteElo": pa.uint16(),
+        "BlackElo": pa.uint16(),
+        "TimeControl": pa.dictionary(pa.int16(), pa.string()),
+        "Termination": pa.dictionary(pa.int16(), pa.string())
+        })
+    parquet_writer = pq.ParquetWriter(
+            scratch_file_path,
+            parquet_schema,
+            compression="zstd")
     is_receiving = True
     buffer = list()
     while is_receiving:
-        record = queue.get(block=True) # Wait for a record
+        record = queue.get(block=True, timeout=QUEUE_TIMEOUT)
         is_receiving = record is not None
         if is_receiving and len(buffer) < MAX_BUFFER_LEN:
             buffer.append(record)
             continue
+        if not buffer:
+            break
         df = pd.DataFrame(
                 data=buffer,
                 columns=columns).astype(column_types)
         buffer.clear()
-        table = pa.Table.from_pandas(df)
-        schema = table.schema
-        if is_first_write:
-            parquet_writer = pq.ParquetWriter(
-                    scratch_file_path,
-                    schema,
-                    compression="zstd")
-            is_first_write = False
+        table = pa.Table.from_pandas(df, schema=parquet_schema)
         parquet_writer.write_table(table)
-    parquet_writer.close() # Commit changes
+    if parquet_writer:
+        parquet_writer.close() # Commit changes
 
 
 def process_headers(download_link):
     new_file_name = file_name_from_link(download_link)
-    scratch_file_path = f"{SCRATCH_DIR}/{new_file_name}.zstd"
+    scratch_file_path = f"{SCRATCH_DIR}/{new_file_name}"
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
     queue = Queue(maxsize=MAX_QUEUE_SIZE)
     try:
@@ -121,8 +135,8 @@ def process_headers(download_link):
                     record_consumer, scratch_file_path, queue)
 
             # This will wait for threads and raise exceptions
+            consumer.result() # Has to be first since it cannot talk to producer
             producer.result()
-            consumer.result()
         gDrive = GDrive(CREDENTIALS_JSON)
         gDrive.write_file(scratch_file_path, PARENT_DIR_ID, new_file_name)
     except Exception as e:
@@ -151,7 +165,7 @@ if __name__ == "__main__":
     gDrive = GDrive(CREDENTIALS_JSON)
     existing_files = gDrive.get_files(PARENT_DIR_ID)
     unprocessed_links = [download_link for download_link in download_links
-            if f"{file_name_from_link(download_link)}.zstd" not in existing_files]
+            if f"{file_name_from_link(download_link)}" not in existing_files]
 
     tqdm.write(f"{len(download_links) - len(unprocessed_links)} files already processed.")
     tqdm.write(f"Processing remaining {len(unprocessed_links)} files...")
@@ -169,8 +183,10 @@ if __name__ == "__main__":
                     process_headers,
                     unprocessed_links,
                     chunksize=chunk_size)
-            for result in tqdm(results, desc="Links processed", total=len(unprocessed_links), position=0, ncols=100,
-                               leave=True):
+            for result in tqdm(
+                    results, desc="Links processed",
+                    total=len(unprocessed_links), position=0, ncols=100,
+                    leave=True):
                 tqdm.write(result, file=sys.stderr)
     finally:
         shutil.rmtree(SCRATCH_DIR)
