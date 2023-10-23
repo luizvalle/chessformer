@@ -59,11 +59,18 @@ class GDrive():
         return len(response.get("files", [])) > 0
     
     def get_files(self, parent_directory_id):
-        response = self.service.files().list(
-            q=f"mimeType = 'application/octet-stream' and '{parent_directory_id}' in parents and trashed = False",
-            spaces="drive",
-            fields="files(name)"
-        ).execute()
-        file_names = {returned_file.get("name") for returned_file in response.get("files", [])}
+        file_names = set()
+        page_token = ""
+        while page_token is not None:
+            response = self.service.files().list(
+                    q=f"mimeType = 'application/octet-stream' and '{parent_directory_id}' in parents and trashed = False",
+                    pageSize=1000,
+                    pageToken=page_token,
+                    spaces="drive",
+                    fields="nextPageToken, files(name)"
+                    ).execute()
+            new_file_names = {file.get("name") for file in response.get("files", [])}
+            file_names.update(new_file_names)
+            page_token = response.get("nextPageToken")
         return file_names
 

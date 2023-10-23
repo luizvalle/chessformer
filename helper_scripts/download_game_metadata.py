@@ -25,8 +25,8 @@ from concurrent.futures import ThreadPoolExecutor
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
 PARENT_DIR_ID = "1Cwnlq0ziqLP6h0LsZlrzs3lLTHGRDPLI"
 CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
-SCRATCH_DIR = "./.scratch" # Where temporary data will be stored
-N_PROCESSES = 4
+SCRATCH_DIR = "./.headers_scratch" # Where temporary data will be stored
+N_PROCESSES = 5
 MAX_QUEUE_SIZE = 1e6
 MAX_BUFFER_LEN = 1e5
 QUEUE_TIMEOUT = 60 # seconds
