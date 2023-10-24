@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
 PARENT_DIR_ID = "1Cwnlq0ziqLP6h0LsZlrzs3lLTHGRDPLI"
 CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
+IS_SERVICE_ACCOUNT_CREDENTIAL = False
 SCRATCH_DIR = "./.headers_scratch" # Where temporary data will be stored
 N_PROCESSES = 5
 MAX_QUEUE_SIZE = 1e6
@@ -137,8 +138,9 @@ def process_headers(download_link):
             # This will wait for threads and raise exceptions
             consumer.result() # Has to be first since it cannot talk to producer
             producer.result()
-        gDrive = GDrive(CREDENTIALS_JSON)
-        gDrive.write_file(scratch_file_path, PARENT_DIR_ID, new_file_name)
+        gDrive = GDrive(CREDENTIALS_JSON, IS_SERVICE_ACCOUNT_CREDENTIAL)
+        gDrive.write_file(
+                scratch_file_path, PARENT_DIR_ID, new_file_name)
     except Exception as e:
         timestamp = datetime.now()
         output_message = f"{timestamp}: Error processing {date}: '{e}'."
@@ -162,7 +164,7 @@ if __name__ == "__main__":
     tqdm.write(f"Found {len(download_links)} files to download.")
     tqdm.write("Checking how many were already processed...")
 
-    gDrive = GDrive(CREDENTIALS_JSON)
+    gDrive = GDrive(CREDENTIALS_JSON, IS_SERVICE_ACCOUNT_CREDENTIAL)
     existing_files = gDrive.get_files(PARENT_DIR_ID)
     unprocessed_links = [download_link for download_link in download_links
             if f"{file_name_from_link(download_link)}" not in existing_files]
