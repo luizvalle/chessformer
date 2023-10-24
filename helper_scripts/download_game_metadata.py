@@ -31,12 +31,21 @@ N_PROCESSES = 5
 MAX_QUEUE_SIZE = 1e6
 MAX_BUFFER_LEN = 1e5
 QUEUE_TIMEOUT = 60 # seconds
+DELETE_SCRATCH_FILES = False
 
 
 def file_name_from_link(download_link):
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1)
     path = f"{date}.parquet.zstd"
     return path
+
+
+def get_unprocessed_links(download_links):
+    gDrive = GDrive(CREDENTIALS_JSON, IS_SERVICE_ACCOUNT_CREDENTIAL)
+    existing_files = gDrive.get_files(PARENT_DIR_ID)
+    unprocessed_links = [download_link for download_link in download_links
+            if f"{file_name_from_link(download_link)}" not in existing_files]
+    return unprocessed_links
 
 
 def record_producer(download_link, queue):
@@ -148,7 +157,7 @@ def process_headers(download_link):
         timestamp = datetime.now()
         output_message = f"{timestamp}: Successfully processed {date}."
     finally:
-        if os.path.exists(scratch_file_path):
+        if os.path.exists(scratch_file_path) and DELETE_SCRATCH_FILES:
             os.remove(scratch_file_path)
     return output_message
 
@@ -164,16 +173,14 @@ if __name__ == "__main__":
     tqdm.write(f"Found {len(download_links)} files to download.")
     tqdm.write("Checking how many were already processed...")
 
-    gDrive = GDrive(CREDENTIALS_JSON, IS_SERVICE_ACCOUNT_CREDENTIAL)
-    existing_files = gDrive.get_files(PARENT_DIR_ID)
-    unprocessed_links = [download_link for download_link in download_links
-            if f"{file_name_from_link(download_link)}" not in existing_files]
+    unprocessed_links = get_unprocessed_links(download_links)
 
     tqdm.write(f"{len(download_links) - len(unprocessed_links)} files already processed.")
     tqdm.write(f"Processing remaining {len(unprocessed_links)} files...")
     tqdm.write(f"Using {N_PROCESSES} processes.")
 
     tqdm.write(f"Creating the scratch space directory '{SCRATCH_DIR}'...") 
+
     if not os.path.exists(SCRATCH_DIR):
         os.mkdir(SCRATCH_DIR)
 
@@ -191,5 +198,6 @@ if __name__ == "__main__":
                     leave=True):
                 tqdm.write(result, file=sys.stderr)
     finally:
-        shutil.rmtree(SCRATCH_DIR)
+        if DELETE_SCRATCH_FILES:
+            shutil.rmtree(SCRATCH_DIR)
 
