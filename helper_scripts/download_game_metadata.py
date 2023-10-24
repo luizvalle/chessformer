@@ -1,5 +1,5 @@
 # Usage: python3 download_game_metadata.py
-#
+# 
 # Iterates through the headers of the PGN files and constructs a dataframe from
 # them. This dataframe is then stored in Google Drive.
 import pandas as pd
@@ -8,7 +8,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import re
 import requests
-import multiprocess
 import sys
 import os
 import shutil
@@ -16,7 +15,7 @@ import shutil
 from chess_iterators import CompressedPgnHeaderIterator
 from gdrive import GDrive
 from tqdm.auto import tqdm
-from multiprocess import Pool, RLock, freeze_support, current_process
+from multiprocessing import Pool, RLock, freeze_support, current_process, set_start_method
 from datetime import datetime
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
@@ -32,7 +31,7 @@ MAX_QUEUE_SIZE = 1e6
 MAX_BUFFER_LEN = 1e5
 QUEUE_TIMEOUT = 60 # seconds
 DELETE_SCRATCH_FILES = False
-
+    
 
 def file_name_from_link(download_link):
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1)
@@ -163,6 +162,12 @@ def process_headers(download_link):
 
 
 if __name__ == "__main__":
+    # The multiprocess library defaults to 'fork' but this is unsafe in macOS
+    # as the system may default to threads and thus lead to crashes.
+    # See https://github.com/python/cpython/issues/77906
+    # Must be the first thing that is called
+    set_start_method("spawn", force=True)
+
     freeze_support() # Support for Windows
     tqdm.set_lock(RLock()) # To manage output concurency
 
@@ -187,7 +192,8 @@ if __name__ == "__main__":
     chunk_size = 1
     lock = tqdm.get_lock()
     try:
-        with Pool(N_PROCESSES, initializer=tqdm.set_lock, initargs=(lock,)) as pool:
+        with Pool(N_PROCESSES, initializer=tqdm.set_lock,
+                             initargs=(lock,)) as pool:
             results = pool.imap_unordered(
                     process_headers,
                     unprocessed_links,
