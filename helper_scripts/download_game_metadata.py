@@ -191,8 +191,9 @@ if __name__ == "__main__":
 
     chunk_size = 1
     lock = tqdm.get_lock()
+    number_of_processes = min(N_PROCESSES, len(unprocessed_links))
     try:
-        with Pool(N_PROCESSES, initializer=tqdm.set_lock,
+        with Pool(number_of_processes, initializer=tqdm.set_lock,
                              initargs=(lock,)) as pool:
             results = pool.imap_unordered(
                     process_headers,
