@@ -31,7 +31,7 @@ N_PROCESSES = 5
 MAX_QUEUE_SIZE = 1e4
 MAX_BUFFER_LEN = 1e5
 QUEUE_TIMEOUT = 60 # seconds
-DELETE_SCRATCH_FILES = False
+DELETE_SCRATCH_FILES = True
     
 
 def file_name_from_link(download_link):
