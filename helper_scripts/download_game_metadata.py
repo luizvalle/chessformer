@@ -15,10 +15,11 @@ import shutil
 from chess_iterators import CompressedPgnHeaderIterator
 from gdrive import GDrive
 from tqdm.auto import tqdm
-from multiprocessing import Pool, RLock, freeze_support, current_process, set_start_method
+from multiprocessing import Pool, RLock, current_process, set_start_method
 from datetime import datetime
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
@@ -27,7 +28,7 @@ CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
 IS_SERVICE_ACCOUNT_CREDENTIAL = False
 SCRATCH_DIR = "./.headers_scratch" # Where temporary data will be stored
 N_PROCESSES = 5
-MAX_QUEUE_SIZE = 1e6
+MAX_QUEUE_SIZE = 1e4
 MAX_BUFFER_LEN = 1e5
 QUEUE_TIMEOUT = 60 # seconds
 DELETE_SCRATCH_FILES = False
@@ -47,7 +48,7 @@ def get_unprocessed_links(download_links):
     return unprocessed_links
 
 
-def record_producer(download_link, queue):
+def record_producer(download_link, queue, error_event):
     headers = CompressedPgnHeaderIterator(download_link)
     tqdm_pos = current_process()._identity[0] # Index of the current process
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
@@ -68,6 +69,8 @@ def record_producer(download_link, queue):
                     header["TimeControl"],
                     header["Termination"]
                     )
+            if error_event.is_set():
+                break
             queue.put(info, block=True, timeout=QUEUE_TIMEOUT)
             # Update progress bar
             update_value = headers.total_num_bytes_read() - pbar.n
@@ -76,6 +79,7 @@ def record_producer(download_link, queue):
                             else headers.total_num_bytes() - pbar.n)
             pbar.update(update_value)
     except Exception as e:
+        error_event.set()
         raise e
     finally:
         # Signal to the consumer that no more records will be produced
@@ -83,7 +87,7 @@ def record_producer(download_link, queue):
         pbar.close()
 
 
-def record_consumer(scratch_file_path, queue):
+def record_consumer(scratch_file_path, queue, error_event):
     column_types = {
             "Event": "category",
             "Result": "category",
@@ -108,28 +112,34 @@ def record_consumer(scratch_file_path, queue):
         "TimeControl": pa.dictionary(pa.int16(), pa.string()),
         "Termination": pa.dictionary(pa.int16(), pa.string())
         })
-    parquet_writer = pq.ParquetWriter(
-            scratch_file_path,
-            parquet_schema,
-            compression="zstd")
-    is_receiving = True
-    buffer = list()
-    while is_receiving:
-        record = queue.get(block=True, timeout=QUEUE_TIMEOUT)
-        is_receiving = record is not None
-        if is_receiving and len(buffer) < MAX_BUFFER_LEN:
-            buffer.append(record)
-            continue
-        if not buffer:
-            break
-        df = pd.DataFrame(
-                data=buffer,
-                columns=columns).astype(column_types)
-        buffer.clear()
-        table = pa.Table.from_pandas(df, schema=parquet_schema)
-        parquet_writer.write_table(table)
-    if parquet_writer:
-        parquet_writer.close() # Commit changes
+    try:
+        parquet_writer = pq.ParquetWriter(
+                scratch_file_path,
+                parquet_schema,
+                compression="zstd")
+        is_receiving = True
+        buffer = list()
+        while is_receiving:
+            if error_event.is_set():
+                break
+            record = queue.get(block=True, timeout=QUEUE_TIMEOUT)
+            is_receiving = record is not None
+            if is_receiving and len(buffer) < MAX_BUFFER_LEN:
+                buffer.append(record)
+                continue
+            if not buffer:
+                break
+            df = pd.DataFrame(
+                    data=buffer,
+                    columns=columns).astype(column_types)
+            buffer.clear()
+            table = pa.Table.from_pandas(df, schema=parquet_schema)
+            parquet_writer.write_table(table)
+        if parquet_writer:
+            parquet_writer.close() # Commit changes
+    except Exception as e:
+        error_event.set()
+        raise e
 
 
 def process_headers(download_link):
@@ -137,15 +147,15 @@ def process_headers(download_link):
     scratch_file_path = f"{SCRATCH_DIR}/{new_file_name}"
     date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
     queue = Queue(maxsize=MAX_QUEUE_SIZE)
+    error_event = Event()
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
-            producer = executor.submit(record_producer, download_link, queue)
-            consumer = executor.submit(
-                    record_consumer, scratch_file_path, queue)
-
-            # This will wait for threads and raise exceptions
-            consumer.result() # Has to be first since it cannot talk to producer
+            producer = executor.submit(record_producer, download_link, queue,
+                                       error_event)
+            consumer = executor.submit(record_consumer, scratch_file_path,
+                                       queue, error_event)
             producer.result()
+            consumer.result()
         gDrive = GDrive(CREDENTIALS_JSON, IS_SERVICE_ACCOUNT_CREDENTIAL)
         gDrive.write_file(
                 scratch_file_path, PARENT_DIR_ID, new_file_name)
@@ -166,9 +176,8 @@ if __name__ == "__main__":
     # as the system may default to threads and thus lead to crashes.
     # See https://github.com/python/cpython/issues/77906
     # Must be the first thing that is called
-    set_start_method("spawn", force=True)
+    set_start_method("spawn")
 
-    freeze_support() # Support for Windows
     tqdm.set_lock(RLock()) # To manage output concurency
 
     download_links = sorted(
@@ -195,15 +204,12 @@ if __name__ == "__main__":
     try:
         with Pool(number_of_processes, initializer=tqdm.set_lock,
                              initargs=(lock,)) as pool:
-            results = pool.imap_unordered(
-                    process_headers,
-                    unprocessed_links,
+            results = pool.imap_unordered(process_headers, unprocessed_links,
                     chunksize=chunk_size)
-            for result in tqdm(
-                    results, desc="Links processed",
-                    total=len(unprocessed_links), position=0, ncols=100,
-                    leave=True):
-                tqdm.write(result, file=sys.stderr)
+            for result in tqdm(results, desc="Links processed",
+                               total=len(unprocessed_links), position=0,
+                               ncols=100, leave=True):
+                tqdm.write(result)
     finally:
         if DELETE_SCRATCH_FILES:
             shutil.rmtree(SCRATCH_DIR)
