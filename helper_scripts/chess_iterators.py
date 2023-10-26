@@ -15,6 +15,7 @@ class ResponseRawWrapper(io.IOBase):
         self.num_bytes_read += sys.getsizeof(data)
         return data
 
+
 class CompressedPgnHeaderIterator:
     def __init__(self, download_link):
         dctx = zstd.ZstdDecompressor()
