@@ -41,3 +41,30 @@ class CompressedPgnHeaderIterator:
 
     def total_num_bytes(self):
         return int(self.response.headers.get("Content-Length", 0))
+
+
+class CompressedPgnGameIterator:
+    def __init__(self, download_link):
+        dctx = zstd.ZstdDecompressor()
+        # Stream the results so we do not load everything
+        # into memory at once
+        self.response = requests.get(url=download_link, stream=True)
+        self.response_raw = ResponseRawWrapper(self.response.raw)
+        reader = dctx.stream_reader(self.response_raw)
+        self.text_stream = io.TextIOWrapper(reader, encoding="utf-8")
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        game = chess.pgn.read_game(self.text_stream)
+        if game:
+            return game
+        else:
+            raise StopIteration
+
+    def total_num_bytes_read(self):
+        return self.response_raw.num_bytes_read
+
+    def total_num_bytes(self):
+        return int(self.response.headers.get("Content-Length", 0))
