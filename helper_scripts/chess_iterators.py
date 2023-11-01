@@ -58,6 +58,8 @@ class FastGameVisitor(chess.pgn.BaseVisitor):
         self.game.headers[tagname] = tagvalue
 
     def end_headers(self):
+        if self.game.had_parsing_errors:
+            return chess.pgn.SKIP
         headers = self.game.headers
         is_blitz = (headers["Event"] == "Rated Blitz game")
         is_normal_termination = (headers["Termination"] == "Normal")
@@ -74,6 +76,8 @@ class FastGameVisitor(chess.pgn.BaseVisitor):
         return None if keep_processing else chess.pgn.SKIP
 
     def begin_parse_san(self, board: chess.Board, san: str):
+        if self.game.had_parsing_errors:
+            return chess.pgn.SKIP
         self.game.moves.append(san)
 
     def begin_variation(self):
