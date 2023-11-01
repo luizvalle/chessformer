@@ -48,20 +48,6 @@ def get_unprocessed_links(download_links):
     return unprocessed_links
 
 
-def is_wanted_game(headers):
-    is_blitz = (headers["Event"] == "Rated Blitz game")
-    is_normal_termination = (headers["Termination"] == "Normal")
-    is_time_forfeit_termination = (headers["Termination"] == "Time forfeit")
-    has_white_elo = headers["WhiteElo"].isnumeric()
-    has_black_elo = headers["BlackElo"].isnumeric()
-    is_variant = ("Variant" in headers)
-    return (is_blitz
-            and (is_normal_termination or is_time_forfeit_termination)
-            and has_white_elo
-            and has_black_elo
-            and not is_variant)
-
-
 def get_game_date(headers):
     return f"{headers['UTCDate']} {headers['UTCTime']}"
 
@@ -79,9 +65,11 @@ def record_producer(download_link, queue, error_event):
                 ncols=100)
     try:
         for game in games:
-            headers = game.headers
-            if not is_wanted_game(headers):
+            if game.had_parsing_errors:
                 continue
+            if not game.moves:
+                continue
+            headers = game.headers
             game_date = get_game_date(headers)
             moves = " ".join(game.moves)
             info = (game_date,

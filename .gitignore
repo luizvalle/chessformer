@@ -2,6 +2,8 @@
 
 .vscode/
 
+.games_scratch/
+
 data/
 
 # Byte-compiled / optimized / DLL files

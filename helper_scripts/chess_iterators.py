@@ -47,6 +47,7 @@ class Game:
     def __init__(self):
         self.headers = dict()
         self.moves = list()
+        self.had_parsing_errors = False
 
 
 class FastGameVisitor(chess.pgn.BaseVisitor):
@@ -56,11 +57,30 @@ class FastGameVisitor(chess.pgn.BaseVisitor):
     def visit_header(self, tagname: str, tagvalue: str):
         self.game.headers[tagname] = tagvalue
 
+    def end_headers(self):
+        headers = self.game.headers
+        is_blitz = (headers["Event"] == "Rated Blitz game")
+        is_normal_termination = (headers["Termination"] == "Normal")
+        is_time_forfeit_termination = (headers["Termination"] == "Time forfeit")
+        has_white_elo = headers["WhiteElo"].isnumeric()
+        has_black_elo = headers["BlackElo"].isnumeric()
+        is_variant = ("Variant" in headers)
+        keep_processing = (is_blitz
+                           and (is_normal_termination
+                                or is_time_forfeit_termination)
+                           and has_white_elo
+                           and has_black_elo
+                           and not is_variant)
+        return None if keep_processing else chess.pgn.SKIP
+
     def begin_parse_san(self, board: chess.Board, san: str):
         self.game.moves.append(san)
 
     def begin_variation(self):
         return chess.pgn.SKIP
+
+    def handle_error(self, error):
+        self.game.had_parsing_errors = True
 
     def result(self):
         return self.game
