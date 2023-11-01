@@ -43,6 +43,29 @@ class CompressedPgnHeaderIterator:
         return int(self.response.headers.get("Content-Length", 0))
 
 
+class Game:
+    def __init__(self):
+        self.headers = dict()
+        self.moves = list()
+
+
+class FastGameVisitor(chess.pgn.BaseVisitor):
+    def begin_game(self):
+        self.game = Game()
+    
+    def visit_header(self, tagname: str, tagvalue: str):
+        self.game.headers[tagname] = tagvalue
+
+    def begin_parse_san(self, board: chess.Board, san: str):
+        self.game.moves.append(san)
+
+    def begin_variation(self):
+        return chess.pgn.SKIP
+
+    def result(self):
+        return self.game
+
+
 class CompressedPgnGameIterator:
     def __init__(self, download_link):
         dctx = zstd.ZstdDecompressor()
@@ -57,7 +80,7 @@ class CompressedPgnGameIterator:
         return self
 
     def __next__(self):
-        game = chess.pgn.read_game(self.text_stream)
+        game = chess.pgn.read_game(self.text_stream, Visitor=FastGameVisitor)
         if game:
             return game
         else:

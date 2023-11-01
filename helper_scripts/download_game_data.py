@@ -28,9 +28,9 @@ CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
 IS_SERVICE_ACCOUNT_CREDENTIAL = False
 SCRATCH_DIR = "./.games_scratch" # Where temporary data will be stored
 N_PROCESSES = 5
-MAX_QUEUE_SIZE = 1e4
+MAX_QUEUE_SIZE = 1e5
 MAX_BUFFER_LEN = 1e5
-QUEUE_TIMEOUT = 60 # seconds
+QUEUE_TIMEOUT = 15 # seconds
 DELETE_SCRATCH_FILES = True
     
 
@@ -62,13 +62,8 @@ def is_wanted_game(headers):
             and not is_variant)
 
 
-def get_moves(game):
-    board = game.board()
-    moves = list()
-    for move in game.mainline_moves():
-        moves.append(board.san(move))
-        board.push(move)
-    return " ".join(moves)
+def get_game_date(headers):
+    return f"{headers['UTCDate']} {headers['UTCTime']}"
 
 
 def record_producer(download_link, queue, error_event):
@@ -87,22 +82,17 @@ def record_producer(download_link, queue, error_event):
             headers = game.headers
             if not is_wanted_game(headers):
                 continue
-            if game.errors:
-                continue # Game has illegal moves
-            if error_event.is_set():
-                break
-            game_date = (headers["Date"]
-                         if headers["Date"]
-                         else headers["UTCDate"])
-            moves = get_moves(game)
-            info = (headers["Event"],
-                    game_date,
+            game_date = get_game_date(headers)
+            moves = " ".join(game.moves)
+            info = (game_date,
                     headers["Result"],
                     int(headers["WhiteElo"]),
                     int(headers["BlackElo"]),
                     headers["TimeControl"],
                     headers["Termination"],
                     moves)
+            if error_event.is_set():
+                break
             queue.put(info, block=True, timeout=QUEUE_TIMEOUT)
             # Update progress bar
             update_value = games.total_num_bytes_read() - pbar.n
@@ -121,8 +111,7 @@ def record_producer(download_link, queue, error_event):
 
 def record_consumer(scratch_file_path, queue, error_event):
     column_types = {
-            "Event": "category",
-            "Date": "datetime64[ns]",
+            "Timestamp": "datetime64[us, UTC]",
             "Result": "category",
             "WhiteElo": "uint16",
             "BlackElo": "uint16",
@@ -131,8 +120,7 @@ def record_consumer(scratch_file_path, queue, error_event):
             "Moves": "string"
             }
     columns = [
-            "Event",
-            "Date",
+            "Timestamp",
             "Result",
             "WhiteElo",
             "BlackElo",
@@ -141,8 +129,7 @@ def record_consumer(scratch_file_path, queue, error_event):
             "Moves"
             ]
     parquet_schema = pa.schema({
-        "Event": pa.dictionary(pa.int16(), pa.string()),
-        "Date": pa.timestamp(),
+        "Timestamp": pa.timestamp("us", "UTC"),
         "Result": pa.dictionary(pa.int16(), pa.string()),
         "WhiteElo": pa.uint16(),
         "BlackElo": pa.uint16(),
