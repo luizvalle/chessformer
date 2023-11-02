@@ -53,17 +53,17 @@ def get_game_date(headers):
 
 
 def record_producer(download_link, queue, error_event):
-    games = CompressedPgnGameIterator(download_link)
-    tqdm_pos = current_process()._identity[0] # Index of the current process
-    date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
-    pbar = tqdm(total=games.total_num_bytes(),
-                unit='B',
-                position=tqdm_pos,
-                unit_scale=True,
-                leave=False,
-                desc=f"{date} (download)",
-                ncols=100)
     try:
+        games = CompressedPgnGameIterator(download_link)
+        tqdm_pos = current_process()._identity[0] # Index of the current process
+        date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
+        pbar = tqdm(total=games.total_num_bytes(),
+                    unit='B',
+                    position=tqdm_pos,
+                    unit_scale=True,
+                    leave=False,
+                    desc=f"{date} (download)",
+                    ncols=100)
         for game in games:
             if game.had_parsing_errors:
                 continue
@@ -156,12 +156,12 @@ def record_consumer(scratch_file_path, queue, error_event):
 
 
 def process_headers(download_link):
-    new_file_name = file_name_from_link(download_link)
-    scratch_file_path = f"{SCRATCH_DIR}/{new_file_name}"
-    date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
-    queue = Queue(maxsize=MAX_QUEUE_SIZE)
-    error_event = Event()
     try:
+        new_file_name = file_name_from_link(download_link)
+        scratch_file_path = f"{SCRATCH_DIR}/{new_file_name}"
+        date = re.search(r"(\d{4}-\d{2}).pgn.zst", download_link).group(1).strip()
+        queue = Queue(maxsize=MAX_QUEUE_SIZE)
+        error_event = Event()
         with ThreadPoolExecutor(max_workers=2) as executor:
             producer = executor.submit(record_producer, download_link, queue,
                                        error_event)
