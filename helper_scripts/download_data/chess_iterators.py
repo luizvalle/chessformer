@@ -1,3 +1,4 @@
+import chess
 import chess.pgn
 import zstandard as zstd
 import requests
@@ -75,10 +76,16 @@ class FastGameVisitor(chess.pgn.BaseVisitor):
                            and not is_variant)
         return None if keep_processing else chess.pgn.SKIP
 
-    def begin_parse_san(self, board: chess.Board, san: str):
-        if self.game.had_parsing_errors:
-            return chess.pgn.SKIP
-        self.game.moves.append(san)
+    def visit_move(self, board, move):
+        start_square = chess.SQUARE_NAMES[move.from_square]
+        end_square = chess.SQUARE_NAMES[move.to_square]
+        piece = chess.piece_symbol(board.piece_type_at(move.from_square))
+        if move.promotion:
+            promotion = f"={chess.piece_symbol(move.promotion)}"
+        else:
+            promotion = "-"
+        converted_move = f"{piece} {start_square} {end_square} {promotion}"
+        self.game.moves.append(converted_move)
 
     def begin_variation(self):
         return chess.pgn.SKIP

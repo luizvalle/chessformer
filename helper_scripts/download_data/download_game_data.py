@@ -23,7 +23,7 @@ from threading import Event
 
 
 DOWNLOAD_LIST = "https://database.lichess.org/standard/list.txt"
-PARENT_DIR_ID = "1PmtuJV7x_tz5sM8SYEE4p5gY8yYyUwov"
+PARENT_DIR_ID = "1YzmMKr1ATU9KPPHcRDiawUhO4GMlpZUe"
 CREDENTIALS_JSON = "./credentials.json"  # File with gDrive credentials
 IS_SERVICE_ACCOUNT_CREDENTIAL = False
 SCRATCH_DIR = "./.games_scratch" # Where temporary data will be stored
