@@ -106,6 +106,7 @@ if __name__ == "__main__":
                 for record in tqdm(batch.to_pylist(),
                                    desc=f"Batch {i + 1}",
                                    position=2,
+                                   ncols=100,
                                    leave=False):
                     example = convert_record_to_tf_example(record)
                     size = sys.getsizeof(example) / 1e6
