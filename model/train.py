@@ -6,7 +6,7 @@ import time
 
 from tensorflow.python.client import device_lib
 from data import Dataset
-from model import Chessformer
+from model import ChessformerResultClassifier
 
 
 # Dataset parameters
@@ -38,23 +38,19 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 
 
 @tf.function
-def train_step(moves, true_elos, true_results):
+def train_step(moves, true_results):
     with tf.GradientTape() as tape:
-        predicted_elos, predicted_results = model(moves, training=True)
-        elo_loss = elo_loss_fn(true_elos, predicted_elos)
-        result_loss = result_loss_fn(true_results, predicted_results)
-        loss_value = elo_loss + result_loss
+        predicted_results = model(moves, training=True)
+        loss_value = result_loss_fn(true_results, predicted_results)
     grads = tape.gradient(loss_value, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
-    train_elo_error_metric.update_state(true_elos, predicted_elos)
     train_result_acc_metric.update_state(true_results, predicted_results)
     return loss_value
 
 
 @tf.function
-def val_step(moves, true_elos, true_results):
-    predicted_elos, predicted_results = model(moves, training=False)
-    val_elo_error_metric.update_state(true_elos, predicted_elos)
+def val_step(moves, true_results):
+    predicted_results = model(moves, training=False)
     val_result_acc_metric.update_state(true_results, predicted_results)
 
 
@@ -70,11 +66,13 @@ if __name__ == "__main__":
     
     dataset = Dataset(args.training_data_dir)
 
-    train_dataset, val_dataset = dataset.get_splits(BATCH_SIZE, BUFFER_SIZE)
+    train_dataset, val_dataset = dataset.split()
+    train_dataset = dataset.make_batches(train_dataset, BATCH_SIZE, BUFFER_SIZE)
+    val_dataset = dataset.make_batches(val_dataset, BATCH_SIZE, BUFFER_SIZE)
 
     vocab_size = dataset.get_vocab_size()
 
-    model = Chessformer(
+    model = ChessformerResultClassifier(
             NUM_ENCODER_LAYERS, vocab_size, EMBEDDING_DIM, NUM_ATTENTION_HEADS,
             FEED_FORWARD_DIMENSION, DROPOUT_RATE)
 
@@ -82,13 +80,8 @@ if __name__ == "__main__":
     optimizer = tf.keras.optimizers.Adam(
             learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
-    elo_loss_fn = tf.keras.losses.MeanSquaredError(
-            reduction=SUM_OVER_BATCH_SIZE)
     result_loss_fn = tf.keras.losses.CategoricalCrossentropy(
             reduction=SUM_OVER_BATCH_SIZE)
-
-    train_elo_error_metric = tf.keras.metrics.MeanSquaredError()
-    val_elo_error_metric = tf.keras.metrics.MeanSquaredError()
 
     train_result_acc_metric = tf.keras.metrics.CategoricalAccuracy()
     val_result_acc_metric = tf.keras.metrics.CategoricalAccuracy()
@@ -99,7 +92,7 @@ if __name__ == "__main__":
 
         # Iterate over the batches of the dataset.
         for step, (moves, true_elos, true_results) in enumerate(train_dataset):
-            loss_value = train_step(moves, true_elos, true_results)
+            loss_value = train_step(moves, true_results)
 
             # TODO: Change this
             # Log every 1 batch.
@@ -120,7 +113,7 @@ if __name__ == "__main__":
 
         # Run a validation loop at the end of each epoch.
         for moves, true_elos, true_results in val_dataset:
-            val_step(moves, true_elos, true_results)
+            val_step(moves, true_results)
 
         val_elo_error = val_elo_error_metric.result()
         val_result_acc = val_result_acc_metric.result()

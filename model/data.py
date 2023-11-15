@@ -1,6 +1,7 @@
 import tensorflow as tf
 import os
 
+from random import shuffle
 
 PIECES = ["p", "n", "b", "r", "q", "k"]
 RANK_NAMES = ["1", "2", "3", "4", "5", "6", "7", "8"]
@@ -21,10 +22,9 @@ FEATURE_DESCRIPTION = {
 
 class Dataset():
     def __init__(self, dataset_dir, compression="GZIP", max_game_length=1024):
-        files = [f"{dataset_dir}/{file}"
+        self.files = [f"{dataset_dir}/{file}"
                  for file in os.listdir(dataset_dir)]
-        self.dataset = tf.data.TFRecordDataset(filenames=files,
-                                               compression_type=compression)
+        self.compression = compression
         self.moves_vectorizer = tf.keras.layers.TextVectorization(
                 output_mode="int",
                 vocabulary=POSSIBLE_TOKENS,
@@ -46,7 +46,21 @@ class Dataset():
         elos = tf.concat(values=[white_elo, black_elo], axis=1)
         return tokenized_moves, elos, result_embedding
 
-    def _make_batches(self, dataset, batch_size, buffer_size):
+    def split(self, train_split=0.8):
+        shuffle(self.files)
+        num_files = len(self.files)
+        train_size = int(num_files * train_split)
+
+        train_files = self.files[:train_size]
+        validation_files = self.files[train_size:]
+
+        train_dataset = tf.data.TFRecordDataset(filenames=train_files,
+                                               compression_type=self.compression)
+        validation_dataset = tf.data.TFRecordDataset(filenames=train_files,
+                                                     compression_type=self.compression)
+        return train_dataset, validation_dataset
+
+    def make_batches(self, dataset, batch_size, buffer_size):
         return (
                 dataset
                 .shuffle(buffer_size)
@@ -54,12 +68,6 @@ class Dataset():
                 .map(self._prepare_example, tf.data.AUTOTUNE)
                 .prefetch(buffer_size=tf.data.AUTOTUNE))
 
-    def get_splits(self, batch_size, buffer_size):
-        # TODO: Replace with correct way to split the dataset
-        train_dataset = self.dataset.take(1000)
-        val_dataset = self.dataset.skip(1000).take(1000)
-        return (self._make_batches(train_dataset, batch_size, buffer_size),
-                self._make_batches(val_dataset, batch_size, buffer_size))
 
     def get_vocab_size(self):
         return self.moves_vectorizer.vocabulary_size()
