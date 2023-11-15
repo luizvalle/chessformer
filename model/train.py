@@ -11,7 +11,7 @@ from model import ChessformerResultClassifier
 
 # Dataset parameters
 BUFFER_SIZE = 20000
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 
 # Model parameters
 NUM_ENCODER_LAYERS = 6
@@ -41,17 +41,17 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 def train_step(moves, true_results):
     with tf.GradientTape() as tape:
         predicted_results = model(moves, training=True)
-        loss_value = result_loss_fn(true_results, predicted_results)
+        loss_value = loss_fn(true_results, predicted_results)
     grads = tape.gradient(loss_value, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
-    train_result_acc_metric.update_state(true_results, predicted_results)
+    acc_metric.update_state(true_results, predicted_results)
     return loss_value
 
 
 @tf.function
 def val_step(moves, true_results):
     predicted_results = model(moves, training=False)
-    val_result_acc_metric.update_state(true_results, predicted_results)
+    acc_metric.update_state(true_results, predicted_results)
 
 
 if __name__ == "__main__":
@@ -80,11 +80,10 @@ if __name__ == "__main__":
     optimizer = tf.keras.optimizers.Adam(
             learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
-    result_loss_fn = tf.keras.losses.CategoricalCrossentropy(
+    loss_fn = tf.keras.losses.CategoricalCrossentropy(
             reduction=SUM_OVER_BATCH_SIZE)
 
-    train_result_acc_metric = tf.keras.metrics.CategoricalAccuracy()
-    val_result_acc_metric = tf.keras.metrics.CategoricalAccuracy()
+    acc_metric = tf.keras.metrics.CategoricalAccuracy()
 
     for epoch in range(args.epochs):
         print(f"\nStart of epoch {epoch}")
@@ -102,23 +101,18 @@ if __name__ == "__main__":
                 print(f"Seen so far: {(step + 1) * BATCH_SIZE} samples")
 
         # Display metrics at the end of each epoch.
-        train_elo_error = train_elo_error_metric.result()
-        train_result_acc = train_result_acc_metric.result()
-        print(f"Elo training error over epoch: {train_elo_error:.4f}")
-        print(f"Result training accuracy over epoch: {train_result_acc:.4f}")
+        accuracy = acc_metric.result()
+        print(f"Training accuracy over epoch: {accuracy:.4f}")
 
         # Reset training metrics at the end of each epoch
-        train_elo_error_metric.reset_states()
-        train_result_acc_metric.reset_states()
+        acc_metric.reset_states()
 
         # Run a validation loop at the end of each epoch.
         for moves, true_elos, true_results in val_dataset:
             val_step(moves, true_results)
 
-        val_elo_error = val_elo_error_metric.result()
-        val_result_acc = val_result_acc_metric.result()
-        print(f"Elo validation error over epoch: {val_elo_error:.4f}")
-        print(f"Result validation accuracy over epoch: {val_result_acc:.4f}")
+        accuracy = acc_metric.result()
+        print(f"Validation accuracy over epoch: {accuracy:.4f}")
         val_elo_error_metric.reset_states()
         val_result_acc_metric.reset_states()
         print(f"Time taken: {time.time() - start_time:.2f}s")
