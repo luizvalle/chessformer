@@ -59,24 +59,61 @@ if __name__ == "__main__":
     parser.add_argument("--training_data_dir", dest="training_data_dir",
                         required=True, type=str,
                         help="Directory with tfrecord files.")
+    parser.add_argument("--train_split", dest="train_split",
+                        default=0.8, type=float,
+                        help="The proportion of the overall dataset size to use for training.")
+    parser.add_argument("--batch_size", dest="batch_size",
+                        default=128, type=int,
+                        help="The batch size to use in training.")
+    parser.add_argument("--shuffle_buffer_size", dest="shuffle_buffer_size",
+                        default=20000, type=int,
+                        help="The size of the buffer to use when shuffling the dataset.")
     parser.add_argument("--epochs", dest="epochs",
                         default=10, type=int,
                         help="Number of epochs.")
+    parser.add_argument("--num_encoder_layers", dest="num_encoder_layers",
+                        default=6, type=int,
+                        help="Number of encoder layers.")
+    parser.add_argument("--num_attention_heads", dest="num_attention_heads",
+                        default=8, type=int,
+                        help="The number of self-attention heads in each encoder layer.")
+    parser.add_argument("--embedding_dim", dest="embedding_dim",
+                        default=512, type=int,
+                        help="The dimension of the emebedding for each token.")
+    parser.add_argument("--encoder_feed_forward_dim", dest="encoder_feed_forward_dim",
+                        default=2048, type=int,
+                        help="The size of the hidden layer in the encoder's feed-forward network.")
+    parser.add_argument("--dropout_rate", dest="dropout_rate",
+                        default=0.1, type=float,
+                        help="The dropout rate used in the encoder (in the range [0, 1)).")
+    parser.add_argument("--head_feed_forward_dim", dest="head_feed_forward_dim",
+                        default=64, type=int,
+                        help="The size of the hidden layer in the classification head feed-forward network.")
     args = parser.parse_args()
-    
+
+    print("PARAMETERS:")
+    for arg in vars(args):
+        print(f"\t{arg} = {getattr(args, arg)}")
+
     dataset = Dataset(args.training_data_dir)
 
     train_dataset, val_dataset = dataset.split()
-    train_dataset = dataset.make_batches(train_dataset, BATCH_SIZE, BUFFER_SIZE)
-    val_dataset = dataset.make_batches(val_dataset, BATCH_SIZE, BUFFER_SIZE)
+    train_dataset = dataset.make_batches(train_dataset, args.batch_size, args.shuffle_buffer_size)
+    val_dataset = dataset.make_batches(val_dataset, args.batch_size, args.shuffle_buffer_size)
 
     vocab_size = dataset.get_vocab_size()
 
     model = ChessformerResultClassifier(
-            NUM_ENCODER_LAYERS, vocab_size, EMBEDDING_DIM, NUM_ATTENTION_HEADS,
-            FEED_FORWARD_DIMENSION, DROPOUT_RATE)
+            num_layers=args.num_encoder_layers,
+            vocab_size=vocab_size,
+            d_k=args.embedding_dim,
+            num_heads=args.num_attention_heads,
+            encoder_dff=args.encoder_feed_forward_dim,
+            classifier_dff=args.head_feed_forward_dim,
+            dropout_rate=args.dropout_rate
+            )
 
-    learning_rate = CustomSchedule(EMBEDDING_DIM)
+    learning_rate = CustomSchedule(args.embedding_dim)
     optimizer = tf.keras.optimizers.Adam(
             learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 

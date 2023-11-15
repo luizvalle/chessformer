@@ -151,11 +151,11 @@ class Encoder(tf.keras.layers.Layer):
 
 
 class EloRegression(tf.keras.layers.Layer):
-    def __init__(self):
+    def __init__(self, dff):
         super().__init__()
         self.hidden_layers = tf.keras.Sequential([
-            tf.keras.layers.Dense(64, activation="relu"),
-            tf.keras.layers.Dense(64, activation="relu"),
+            tf.keras.layers.Dense(dff, activation="relu"),
+            tf.keras.layers.Dense(dff, activation="relu"),
         ])
         # We will output two elo scores
         self.output_layer = tf.keras.layers.Dense(2, activation="relu")
@@ -167,11 +167,11 @@ class EloRegression(tf.keras.layers.Layer):
 
 
 class ResultClassification(tf.keras.layers.Layer):
-    def __init__(self):
+    def __init__(self, dff):
         super().__init__()
         self.hidden_layers = tf.keras.Sequential([
-            tf.keras.layers.Dense(64, activation="relu"),
-            tf.keras.layers.Dense(64, activation="relu"),
+            tf.keras.layers.Dense(dff, activation="relu"),
+            tf.keras.layers.Dense(dff, activation="relu"),
         ])
         # There are three possible results
         self.output_layer = tf.keras.layers.Dense(3, activation="softmax")
