@@ -47,7 +47,7 @@ def parse_args():
                         default=os.getenv("AIP_MODEL_DIR"), type=str,
                         help="The location to save the final trained model.")
     parser.add_argument("--model_checkpoint_dir", dest="model_checkpoint_dir",
-                        default=os.getenv("AIP_MODEL_DIR"), type=str,
+                        default=os.getenv("AIP_CHECKPOINT_DIR"), type=str,
                         help="The location to save the model checkpoints.")
     parser.add_argument("--epochs", dest="epochs",
                         default=25, type=int,
