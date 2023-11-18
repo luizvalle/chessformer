@@ -12,7 +12,7 @@ from model import ChessformerResultClassifier
 
 # Training loop parameters
 SUM_OVER_BATCH_SIZE = tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE
-BATCH_LOG_FREQUENCY = 200
+BATCH_LOG_FREQUENCY = 100
 MAX_CHECKPOINTS_TO_KEEP = 5
 MAX_HOURS_BETWEEN_CHECKPOINTS = 1
 
