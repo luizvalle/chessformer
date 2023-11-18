@@ -124,17 +124,18 @@ def main():
 
     acc_metric = tf.keras.metrics.CategoricalAccuracy()
 
-    checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=model)
-    checkpoint_manager = tf.train.CheckpointManager(
-            checkpoint, directory=args.model_checkpoint_dir,
-            max_to_keep=MAX_CHECKPOINTS_TO_KEEP,
-            keep_checkpoint_every_n_hours=MAX_HOURS_BETWEEN_CHECKPOINTS)
-
-    loaded_checkpoint_file = checkpoint_manager.restore_or_initialize()
-    if loaded_checkpoint_file:
-        print(f"Loaded the checkpoint from '{loaded_checkpoint_file}'")
-    else:
-        print("No checkpoint found.")
+    save_checkpoints = args.model_checkpoint_dir is not None
+    if save_checkpoints:
+        checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=model)
+        checkpoint_manager = tf.train.CheckpointManager(
+                checkpoint, directory=args.model_checkpoint_dir,
+                max_to_keep=MAX_CHECKPOINTS_TO_KEEP,
+                keep_checkpoint_every_n_hours=MAX_HOURS_BETWEEN_CHECKPOINTS)
+        loaded_checkpoint_file = checkpoint_manager.restore_or_initialize()
+        if loaded_checkpoint_file:
+            print(f"Loaded the checkpoint from '{loaded_checkpoint_file}'")
+        else:
+            print("No checkpoint found.")
 
     for epoch in range(args.epochs):
         print(f"\nStart of epoch {epoch}")
@@ -150,7 +151,8 @@ def main():
                 print(
                     f"Training loss (for one batch) at step {step}: {float(loss_value):.4f}")
                 print(f"Seen so far: {(step + 1) * args.batch_size} samples")
-                checkpoint_manager.save()
+                if save_checkpoints:
+                    checkpoint_manager.save()
 
         # Display metrics at the end of each epoch.
         accuracy = acc_metric.result()
