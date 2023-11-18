@@ -12,6 +12,7 @@ from model import ChessformerResultClassifier
 
 # Training loop parameters
 SUM_OVER_BATCH_SIZE = tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE
+BATCH_LOG_FREQUENCY = 200
 MAX_CHECKPOINTS_TO_KEEP = 5
 MAX_HOURS_BETWEEN_CHECKPOINTS = 1
 
@@ -160,7 +161,7 @@ def main():
                     moves, true_results, model, loss_fn, optimizer, acc_metric)
 
             # Log every 200 batches.
-            if step % 200 == 0:
+            if step % BATCH_LOG_FREQUENCY == 0:
                 print(
                     f"Training loss (for one batch) at step {step}: {float(loss_value):.4f}")
                 print(f"Seen so far: {(step + 1) * args.batch_size} samples")
