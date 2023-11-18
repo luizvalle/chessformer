@@ -2,6 +2,7 @@ import tensorflow as tf
 import argparse
 import os
 import sys
+import datetime
 import time
 
 from tensorflow.python.client import device_lib
@@ -48,6 +49,9 @@ def parse_args():
                         help="The location to save the final trained model.")
     parser.add_argument("--model_checkpoint_dir", dest="model_checkpoint_dir",
                         default=os.getenv("AIP_CHECKPOINT_DIR"), type=str,
+                        help="The location to save the model checkpoints.")
+    parser.add_argument("--tensorboard_log_dir", dest="tensorboard_log_dir",
+                        default=os.getenv("AIP_TENSORBOARD_LOG_DIR"), type=str,
                         help="The location to save the model checkpoints.")
     parser.add_argument("--epochs", dest="epochs",
                         default=25, type=int,
@@ -124,6 +128,15 @@ def main():
 
     acc_metric = tf.keras.metrics.CategoricalAccuracy()
 
+    save_logs = args.tensorboard_log_dir is not None
+    if save_logs:
+        current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        save_dir = f"{args.tensorboard_log_dir}/"
+        train_log_dir = save_dir + current_time + '/train'
+        val_log_dir = save_dir + current_time + '/val'
+        train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+        val_summary_writer = tf.summary.create_file_writer(val_log_dir)
+
     save_checkpoints = args.model_checkpoint_dir is not None
     if save_checkpoints:
         checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=model)
@@ -157,6 +170,9 @@ def main():
         # Display metrics at the end of each epoch.
         accuracy = acc_metric.result()
         print(f"Training accuracy over epoch: {accuracy:.4f}")
+        if save_logs:
+            with train_summary_writer.as_default():
+                tf.summary.scalar("accuracy", accuracy, step=epoch)
 
         # Reset training metrics at the end of each epoch
         acc_metric.reset_states()
@@ -167,6 +183,9 @@ def main():
 
         accuracy = acc_metric.result()
         print(f"Validation accuracy over epoch: {accuracy:.4f}")
+        if save_logs:
+            with val_summary_writer.as_default():
+                tf.summary.scalar("accuracy", accuracy, step=epoch)
         acc_metric.reset_states()
         print(f"Time taken: {time.time() - start_time:.2f}s")
 
