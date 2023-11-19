@@ -58,16 +58,16 @@ def parse_args():
                         default=25, type=int,
                         help="Number of epochs.")
     parser.add_argument("--num_encoder_layers", dest="num_encoder_layers",
-                        default=6, type=int,
+                        default=3, type=int,
                         help="Number of encoder layers.")
     parser.add_argument("--num_attention_heads", dest="num_attention_heads",
-                        default=8, type=int,
+                        default=3, type=int,
                         help="The number of self-attention heads in each encoder layer.")
     parser.add_argument("--embedding_dim", dest="embedding_dim",
                         default=512, type=int,
                         help="The dimension of the emebedding for each token.")
     parser.add_argument("--encoder_feed_forward_dim", dest="encoder_feed_forward_dim",
-                        default=2048, type=int,
+                        default=1024, type=int,
                         help="The size of the hidden layer in the encoder's feed-forward network.")
     parser.add_argument("--dropout_rate", dest="dropout_rate",
                         default=0.1, type=float,
