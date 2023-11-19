@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utils import positional_encoding
+from trainer.utils import positional_encoding
 
 
 class InputEmbedding(tf.keras.layers.Layer):

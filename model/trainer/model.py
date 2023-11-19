@@ -1,5 +1,5 @@
 import tensorflow as tf
-from layers import Encoder, EloRegression, ResultClassification
+from trainer.layers import Encoder, EloRegression, ResultClassification
 
 
 class ChessformerResultClassifier(tf.keras.Model):

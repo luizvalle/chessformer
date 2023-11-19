@@ -6,8 +6,8 @@ import datetime
 import time
 
 from tensorflow.python.client import device_lib
-from data import Dataset
-from model import ChessformerResultClassifier
+from trainer.data import Dataset
+from trainer.model import ChessformerResultClassifier
 
 
 # Training loop parameters
