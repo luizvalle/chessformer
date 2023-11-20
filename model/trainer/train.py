@@ -160,7 +160,6 @@ def main():
             loss_value = train_step(
                     moves, true_results, model, loss_fn, optimizer, acc_metric)
 
-            # Log every 200 batches.
             if step % BATCH_LOG_FREQUENCY == 0:
                 print(
                     f"Training loss (for one batch) at step {step}: {float(loss_value):.4f}")
