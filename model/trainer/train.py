@@ -53,10 +53,10 @@ def parse_args():
                         help="After how many batches to log metric updates.")
     parser.add_argument("--tensorboard_log_dir", dest="tensorboard_log_dir",
                         default=os.getenv("AIP_TENSORBOARD_LOG_DIR"), type=str,
-                        help="The location to save the model checkpoints.")
+                        help="The location to save the training logs.")
     parser.add_argument("--batch_log_frequency", dest="batch_log_frequency",
                         default=100, type=int,
-                        help="After how many batches to log metric updates.")
+                        help="After how many batches to print metric updates.")
     parser.add_argument("--epochs", dest="epochs",
                         default=25, type=int,
                         help="Number of epochs.")
