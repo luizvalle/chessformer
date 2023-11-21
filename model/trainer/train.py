@@ -139,13 +139,14 @@ def main():
     save_logs = args.tensorboard_log_dir is not None
     if save_logs:
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        save_dir = f"{args.tensorboard_log_dir}/"
-        train_log_dir = save_dir + current_time + '/train'
-        val_log_dir = save_dir + current_time + '/val'
+        train_log_dir = os.path.join(
+                args.tensorboard_log_dir, current_time, "train")
+        val_log_dir = os.path.join(
+                args.tensorboard_log_dir, current_time, "val")
         train_epoch_summary_writer = tf.summary.create_file_writer(
-                f"{train_log_dir}/epoch")
+                os.path.join(train_log_dir, "epoch"))
         val_epoch_summary_writer = tf.summary.create_file_writer(
-                f"{val_log_dir}/epoch")
+                os.path.join(val_log_dir, "epoch"))
 
     save_checkpoints = args.model_checkpoint_dir is not None
     if save_checkpoints:
@@ -165,9 +166,9 @@ def main():
 
         if save_logs:
             train_batch_summary_writer = tf.summary.create_file_writer(
-                    f"{train_log_dir}/batch/epoch/{epoch}")
+                    os.path.join(train_log_dir, f"batch/epoch/{epoch}"))
             val_batch_summary_writer = tf.summary.create_file_writer(
-                    f"{val_log_dir}/batch/epoch/{epoch}")
+                    os.path.join(val_log_dir, f"batch/epoch/{epoch}"))
 
         # Iterate over the batches of the dataset.
         for step, (moves, true_elos, true_results) in enumerate(train_dataset):

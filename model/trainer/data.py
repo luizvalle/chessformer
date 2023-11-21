@@ -22,7 +22,7 @@ FEATURE_DESCRIPTION = {
 
 class Dataset():
     def __init__(self, dataset_dir, compression="GZIP", max_game_length=1024):
-        self.files = [f"{dataset_dir}/{file}"
+        self.files = [os.path.join(dataset_dir, file)
                  for file in os.listdir(dataset_dir)]
         self.compression = compression
         self.moves_vectorizer = tf.keras.layers.TextVectorization(
