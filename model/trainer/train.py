@@ -12,9 +12,6 @@ from trainer.model import ChessformerResultClassifier
 
 # Training loop parameters
 SUM_OVER_BATCH_SIZE = tf.keras.losses.Reduction.SUM_OVER_BATCH_SIZE
-BATCH_LOG_FREQUENCY = 100
-MAX_CHECKPOINTS_TO_KEEP = 5
-MAX_HOURS_BETWEEN_CHECKPOINTS = 1
 
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -51,9 +48,15 @@ def parse_args():
     parser.add_argument("--model_checkpoint_dir", dest="model_checkpoint_dir",
                         default=os.getenv("AIP_CHECKPOINT_DIR"), type=str,
                         help="The location to save the model checkpoints.")
+    parser.add_argument("--max_checkpoints_to_keep", dest="max_checkpoints_to_keep",
+                        default=5, type=int,
+                        help="After how many batches to log metric updates.")
     parser.add_argument("--tensorboard_log_dir", dest="tensorboard_log_dir",
                         default=os.getenv("AIP_TENSORBOARD_LOG_DIR"), type=str,
                         help="The location to save the model checkpoints.")
+    parser.add_argument("--batch_log_frequency", dest="batch_log_frequency",
+                        default=100, type=int,
+                        help="After how many batches to log metric updates.")
     parser.add_argument("--epochs", dest="epochs",
                         default=25, type=int,
                         help="Number of epochs.")
@@ -149,8 +152,7 @@ def main():
         checkpoint = tf.train.Checkpoint(optimizer=optimizer, model=model)
         checkpoint_manager = tf.train.CheckpointManager(
                 checkpoint, directory=args.model_checkpoint_dir,
-                max_to_keep=MAX_CHECKPOINTS_TO_KEEP,
-                keep_checkpoint_every_n_hours=MAX_HOURS_BETWEEN_CHECKPOINTS)
+                max_to_keep=args.max_checkpoints_to_keep)
         loaded_checkpoint_file = checkpoint_manager.restore_or_initialize()
         if loaded_checkpoint_file:
             print(f"Loaded the checkpoint from '{loaded_checkpoint_file}'")
@@ -172,7 +174,7 @@ def main():
             loss_value = train_step(
                     moves, true_results, model, loss_fn, optimizer, acc_metric)
 
-            if step % BATCH_LOG_FREQUENCY == 0:
+            if step % args.batch_log_frequency == 0:
                 print(
                     f"Training loss (for one batch) at step {step}: {float(loss_value):.4f}")
                 print(f"Seen so far: {(step + 1) * args.batch_size} samples")
