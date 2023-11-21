@@ -75,6 +75,9 @@ def parse_args():
     parser.add_argument("--head_feed_forward_dim", dest="head_feed_forward_dim",
                         default=64, type=int,
                         help="The size of the hidden layer in the classification head feed-forward network.")
+    parser.add_argument("--max_game_token_length", dest="max_game_token_length",
+                        default=1024, type=int,
+                        help="The maximum number of tokens games will be trimmed to.")
     args = parser.parse_args()
     return args
 
@@ -103,7 +106,8 @@ def main():
     for arg in vars(args):
         print(f"\t{arg} = {getattr(args, arg)}")
 
-    dataset = Dataset(args.training_data_dir)
+    dataset = Dataset(
+            args.training_data_dir, max_game_length=args.max_game_token_length)
 
     train_dataset, val_dataset = dataset.split()
     train_dataset = dataset.make_batches(train_dataset, args.batch_size, args.shuffle_buffer_size)
