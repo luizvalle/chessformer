@@ -135,8 +135,10 @@ def main():
         save_dir = f"{args.tensorboard_log_dir}/"
         train_log_dir = save_dir + current_time + '/train'
         val_log_dir = save_dir + current_time + '/val'
-        train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-        val_summary_writer = tf.summary.create_file_writer(val_log_dir)
+        train_epoch_summary_writer = tf.summary.create_file_writer(
+                f"{train_log_dir}/epoch")
+        val_epoch_summary_writer = tf.summary.create_file_writer(
+                f"{val_log_dir}/epoch")
 
     save_checkpoints = args.model_checkpoint_dir is not None
     if save_checkpoints:
@@ -155,6 +157,12 @@ def main():
         print(f"\nStart of epoch {epoch}")
         start_time = time.time()
 
+        if save_logs:
+            train_batch_summary_writer = tf.summary.create_file_writer(
+                    f"{train_log_dir}/batch/epoch/{epoch}")
+            val_batch_summary_writer = tf.summary.create_file_writer(
+                    f"{val_log_dir}/batch/epoch/{epoch}")
+
         # Iterate over the batches of the dataset.
         for step, (moves, true_elos, true_results) in enumerate(train_dataset):
             loss_value = train_step(
@@ -167,24 +175,33 @@ def main():
                 if save_checkpoints:
                     checkpoint_manager.save()
 
+            if save_logs:
+                accuracy = acc_metric.result()
+                with train_batch_summary_writer.as_default():
+                    tf.summary.scalar("accuracy", accuracy, step=step)
+
         # Display metrics at the end of each epoch.
         accuracy = acc_metric.result()
         print(f"Training accuracy over epoch: {accuracy:.4f}")
         if save_logs:
-            with train_summary_writer.as_default():
+            with train_epoch_summary_writer.as_default():
                 tf.summary.scalar("accuracy", accuracy, step=epoch)
 
         # Reset training metrics at the end of each epoch
         acc_metric.reset_states()
 
         # Run a validation loop at the end of each epoch.
-        for moves, true_elos, true_results in val_dataset:
+        for step, (moves, true_elos, true_results) in enumerate(val_dataset):
             val_step(moves, true_results, model, acc_metric)
+            if save_logs:
+                accuracy = acc_metric.result()
+                with val_batch_summary_writer.as_default():
+                    tf.summary.scalar("accuracy", accuracy, step=step)
 
         accuracy = acc_metric.result()
         print(f"Validation accuracy over epoch: {accuracy:.4f}")
         if save_logs:
-            with val_summary_writer.as_default():
+            with val_epoch_summary_writer.as_default():
                 tf.summary.scalar("accuracy", accuracy, step=epoch)
         acc_metric.reset_states()
         print(f"Time taken: {time.time() - start_time:.2f}s")
