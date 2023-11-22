@@ -86,20 +86,32 @@ def parse_args():
 
 
 @tf.function
-def train_step(moves, true_results, model, loss_fn, optimizer, acc_metric):
+def train_step(
+        moves, true_results, model, loss_fn, optimizer,
+        cumulative_acc_metric, cumulative_loss_metric):
     with tf.GradientTape() as tape:
         predicted_results = model(moves, training=True)
         loss_value = loss_fn(true_results, predicted_results)
     grads = tape.gradient(loss_value, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
-    acc_metric.update_state(true_results, predicted_results)
-    return loss_value
+    cumulative_acc_metric.update_state(true_results, predicted_results)
+    cumulative_loss_metric.update_state(true_results, predicted_results)
+    batch_accuracy = tf.keras.metrics.categorical_accuracy(
+            true_results, predicted_results)
+    return loss_value, tf.math.reduce_mean(batch_accuracy)
 
 
 @tf.function
-def val_step(moves, true_results, model, acc_metric):
+def val_step(
+        moves, true_results, model, cumulative_acc_metric,
+        cumulative_loss_metric):
     predicted_results = model(moves, training=False)
-    acc_metric.update_state(true_results, predicted_results)
+    loss_value = loss_fn(true_results, predicted_results)
+    cumulative_acc_metric.update_state(true_results, predicted_results)
+    cumulative_loss_metric.update_state(true_results, predicted_results)
+    batch_accuracy = tf.keras.metrics.categorical_accuracy(
+            true_results, predicted_results)
+    return loss_value, tf.math.reduce_mean(batch_accuracy)
 
 
 def main():
@@ -134,7 +146,8 @@ def main():
     loss_fn = tf.keras.losses.CategoricalCrossentropy(
             reduction=SUM_OVER_BATCH_SIZE)
 
-    acc_metric = tf.keras.metrics.CategoricalAccuracy()
+    cumulative_acc_metric = tf.keras.metrics.CategoricalAccuracy()
+    cumulative_loss_metric = tf.keras.metrics.CategoricalCrossentropy()
 
     save_logs = args.tensorboard_log_dir is not None
     if save_logs:
@@ -172,45 +185,71 @@ def main():
 
         # Iterate over the batches of the dataset.
         for step, (moves, true_elos, true_results) in enumerate(train_dataset):
-            loss_value = train_step(
-                    moves, true_results, model, loss_fn, optimizer, acc_metric)
+            batch_loss, batch_accuracy = train_step(
+                    moves, true_results, model, loss_fn, optimizer,
+                    cumulative_acc_metric, cumulative_loss_metric)
 
             if step % args.batch_log_frequency == 0:
                 print(
-                    f"Training loss (for one batch) at step {step}: {float(loss_value):.4f}")
+                    f"Training loss (for one batch) at step {step}: {float(batch_loss):.4f}")
                 print(f"Seen so far: {(step + 1) * args.batch_size} samples")
                 if save_checkpoints:
                     checkpoint_manager.save()
 
             if save_logs:
-                accuracy = acc_metric.result()
+                accuracy = cumulative_acc_metric.result()
+                loss = cumulative_loss_metric.result()
                 with train_batch_summary_writer.as_default():
-                    tf.summary.scalar("accuracy", accuracy, step=step)
+                    tf.summary.scalar(
+                            "cumulative_batch_accuracy", accuracy, step=step)
+                    tf.summary.scalar(
+                            "cumulative_batch_loss", loss, step=step)
+                    tf.summary.scalar(
+                            "batch_accuracy", batch_accuracy, step=step)
+                    tf.summary.scalar(
+                            "batch_loss", batch_loss, step=step)
 
         # Display metrics at the end of each epoch.
-        accuracy = acc_metric.result()
+        accuracy = cumulative_acc_metric.result()
+        loss = cumulative_loss_metric.result()
         print(f"Training accuracy over epoch: {accuracy:.4f}")
         if save_logs:
             with train_epoch_summary_writer.as_default():
-                tf.summary.scalar("accuracy", accuracy, step=epoch)
+                tf.summary.scalar(
+                        "epoch_accuracy", accuracy, step=epoch)
+                tf.summary.scalar(
+                        "epoch_loss", loss, step=epoch)
 
         # Reset training metrics at the end of each epoch
-        acc_metric.reset_states()
+        cumulative_acc_metric.reset_states()
+        cumulative_loss_metric.reset_states()
 
         # Run a validation loop at the end of each epoch.
         for step, (moves, true_elos, true_results) in enumerate(val_dataset):
-            val_step(moves, true_results, model, acc_metric)
+            batch_loss, batch_accuracy = val_step(
+                    moves, true_results, model, cumulative_acc_metric,
+                    cumulative_loss_metric, cumulative_loss_metric)
             if save_logs:
-                accuracy = acc_metric.result()
+                accuracy = cumulative_acc_metric.result()
+                loss = cumulative_loss_metric.result()
                 with val_batch_summary_writer.as_default():
-                    tf.summary.scalar("accuracy", accuracy, step=step)
+                    tf.summary.scalar(
+                            "cumulative_batch_accuracy", accuracy, step=step)
+                    tf.summary.scalar(
+                            "cumulative_batch_loss", loss, step=step)
+                    tf.summary.scalar(
+                            "batch_accuracy", batch_accuracy, step=step)
+                    tf.summary.scalar(
+                            "batch_loss", batch_loss, step=step)
 
-        accuracy = acc_metric.result()
-        print(f"Validation accuracy over epoch: {accuracy:.4f}")
+        accuracy = cumulative_acc_metric.result()
+        loss = cumulative_loss_metric.result()
         if save_logs:
             with val_epoch_summary_writer.as_default():
-                tf.summary.scalar("accuracy", accuracy, step=epoch)
-        acc_metric.reset_states()
+                tf.summary.scalar("epoch_accuracy", accuracy, step=epoch)
+                tf.summary.scalar("epoch_loss", loss, step=epoch)
+        cumulative_acc_metric.reset_states()
+        cumulative_loss_metric.reset_states()
         print(f"Time taken: {time.time() - start_time:.2f}s")
 
     if args.model_save_dir:
