@@ -103,7 +103,7 @@ def train_step(
 
 @tf.function
 def val_step(
-        moves, true_results, model, cumulative_acc_metric,
+        moves, true_results, model, loss_fn, cumulative_acc_metric,
         cumulative_loss_metric):
     predicted_results = model(moves, training=False)
     loss_value = loss_fn(true_results, predicted_results)
@@ -227,8 +227,8 @@ def main():
         # Run a validation loop at the end of each epoch.
         for step, (moves, true_elos, true_results) in enumerate(val_dataset):
             batch_loss, batch_accuracy = val_step(
-                    moves, true_results, model, cumulative_acc_metric,
-                    cumulative_loss_metric, cumulative_loss_metric)
+                    moves, true_results, model, loss_fn, cumulative_acc_metric,
+                    cumulative_loss_metric)
             if save_logs:
                 accuracy = cumulative_acc_metric.result()
                 loss = cumulative_loss_metric.result()
