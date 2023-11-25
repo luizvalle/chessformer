@@ -124,7 +124,7 @@ def main():
     dataset = Dataset(
             args.training_data_dir, max_game_length=args.max_game_token_length)
 
-    train_dataset, val_dataset = dataset.split()
+    train_dataset, val_dataset = dataset.split(args.train_split)
     train_dataset = dataset.make_batches(train_dataset, args.batch_size, args.shuffle_buffer_size)
     val_dataset = dataset.make_batches(val_dataset, args.batch_size, args.shuffle_buffer_size)
 
