@@ -202,13 +202,13 @@ def parse_args():
                         default="./credentials.json", type=str,
                         help="The file containing the cached gDrive credentials.")
     parser.add_argument("--is_service_account_credential", dest="is_service_account_credential",
-                        default=False, type=bool,
+                        default="False", type=str,
                         help="Whether this is a Google service account credential.")
     parser.add_argument("--scratch_dir", dest="scratch_dir",
                         default="./scratch_space", type=str,
                         help="The directory used for scratch space.")
     parser.add_argument("--delete_scratch_files", dest="delete_scratch_files",
-                        default=True, type=bool,
+                        default="True", type=str,
                         help="Whether this is a Google service account credential.")
     parser.add_argument("--max_queue_size", dest="max_queue_size",
                         default=1e5, type=int,
@@ -231,6 +231,8 @@ def parse_args():
                         help=("The number of seconds the producer or consumer "
                         "will wait for the queue before it times out."))
     args = parser.parse_args()
+    args.is_service_account_credential = args.is_service_account_credential == "True"
+    args.delete_scratch_files = args.delete_scratch_files == "True"
     return args
 
 
