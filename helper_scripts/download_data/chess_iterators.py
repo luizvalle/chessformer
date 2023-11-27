@@ -64,13 +64,13 @@ class FastGameVisitor(chess.pgn.BaseVisitor):
         headers = self.game.headers
         is_blitz = (headers["Event"] == "Rated Blitz game")
         is_normal_termination = (headers["Termination"] == "Normal")
-        is_time_forfeit_termination = (headers["Termination"] == "Time forfeit")
+        is_3_minute_game = (headers["TimeControl"] == "180+0")
         has_white_elo = headers["WhiteElo"].isnumeric()
         has_black_elo = headers["BlackElo"].isnumeric()
         is_variant = ("Variant" in headers)
         keep_processing = (is_blitz
-                           and (is_normal_termination
-                                or is_time_forfeit_termination)
+                           and is_normal_termination
+                           and is_3_minute_game
                            and has_white_elo
                            and has_black_elo
                            and not is_variant)
