@@ -82,6 +82,7 @@ if __name__ == "__main__":
 
     shard = 0
     total_size = 0
+    num_games = 0
     processed_file_path = f"{OUTPUT_DIR}/data-{shard}.tfrecord.gzip"
     writer = tf.io.TFRecordWriter(processed_file_path, "GZIP") 
     for file in tqdm(input_files, desc="Files processed",
@@ -111,15 +112,18 @@ if __name__ == "__main__":
                     example = convert_record_to_tf_example(record)
                     size = sys.getsizeof(example) / 1e6
                     if total_size + size > OUT_FILE_SIZE_LIMIT:
-                        log(f"Shard {shard} reached {total_size:.2f} MB / {OUT_FILE_SIZE_LIMIT} MB. Creating a new shard.")
+                        log(f"Shard {shard} reached {total_size:.2f} MB / {OUT_FILE_SIZE_LIMIT} MB. Games in file: {num_games}.")
+                        log("Creating a new shard.")
                         writer.close()
                         shard += 1
                         total_size = 0
+                        num_games = 0
                         processed_file_path = f"{OUTPUT_DIR}/data-{shard}.tfrecord.gzip"
                         writer = tf.io.TFRecordWriter(processed_file_path,
                                                       "GZIP") 
                     writer.write(example)
                     total_size += size
+                    num_games += 1
                 # Update progress bar
                 update_value = iterator.total_num_bytes_read() - pbar.n
                 update_value = (update_value
