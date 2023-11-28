@@ -32,12 +32,15 @@ def parse_args():
             description="Keras Chess Game Result Predictor")
     parser.add_argument("--training_data_dir", dest="training_data_dir",
                         required=True, type=str,
-                        help="Directory with tfrecord files.")
-    parser.add_argument("--train_split", dest="train_split",
-                        default=0.8, type=float,
-                        help="The proportion of the overall dataset size to use for training.")
+                        help="Directory with tfrecord files to be used for training.")
+    parser.add_argument("--validation_data_dir", dest="validation_data_dir",
+                        required=True, type=str,
+                        help="Directory with tfrecord files to be used for validation.")
+    parser.add_argument("--compression", dest="compression",
+                        default="", type=str,
+                        help="The compression used by the dataset.")
     parser.add_argument("--batch_size", dest="batch_size",
-                        default=64, type=int,
+                        default=128, type=int,
                         help="The batch size to use in training.")
     parser.add_argument("--shuffle_buffer_size", dest="shuffle_buffer_size",
                         default=20000, type=int,
@@ -122,11 +125,15 @@ def main():
         print(f"\t{arg} = {getattr(args, arg)}")
 
     dataset = Dataset(
-            args.training_data_dir, max_game_length=args.max_game_token_length)
+            args.training_data_dir, args.validation_data_dir,
+            compression=args.compression,
+            max_game_length=args.max_game_token_length)
 
-    train_dataset, val_dataset = dataset.split(args.train_split)
-    train_dataset = dataset.make_batches(train_dataset, args.batch_size, args.shuffle_buffer_size)
-    val_dataset = dataset.make_batches(val_dataset, args.batch_size, args.shuffle_buffer_size)
+    train_dataset, val_dataset = dataset.split()
+    train_dataset = dataset.make_batches(
+            train_dataset, args.batch_size, args.shuffle_buffer_size)
+    val_dataset = dataset.make_batches(
+            val_dataset, args.batch_size, args.shuffle_buffer_size)
 
     vocab_size = dataset.get_vocab_size()
 

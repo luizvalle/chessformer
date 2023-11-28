@@ -21,9 +21,15 @@ FEATURE_DESCRIPTION = {
 
 
 class Dataset():
-    def __init__(self, dataset_dir, compression="GZIP", max_game_length=1024):
-        self.files = [os.path.join(dataset_dir, file)
-                 for file in os.listdir(dataset_dir)]
+    def __init__(
+            self, train_dataset_dir, validation_dataset_dir, compression,
+            max_game_length):
+        self.train_files = [os.path.join(dataset_dir, file)
+                            for file in os.listdir(train_dataset_dir)]
+        shuffle(self.train_files)
+        self.validation_files = [os.path.join(dataset_dir, file)
+                                 for file in os.listdir(validation_dataset_dir)]
+        shuffle(self.validation_files)
         self.compression = compression
         self.moves_vectorizer = tf.keras.layers.TextVectorization(
                 output_mode="int",
@@ -46,19 +52,12 @@ class Dataset():
         elos = tf.concat(values=[white_elo, black_elo], axis=1)
         return tokenized_moves, elos, result_embedding
 
-    def split(self, train_split=0.8):
-        shuffle(self.files)
-        num_files = len(self.files)
-        train_size = int(num_files * train_split)
-
-        train_files = self.files[:train_size]
-        validation_files = self.files[train_size:]
-
-        train_dataset = tf.data.TFRecordDataset(filenames=train_files,
-                                                num_parallel_reads=4,
+    def split(self):
+        train_dataset = tf.data.TFRecordDataset(filenames=self.train_files,
+                                                num_parallel_reads=5,
                                                 compression_type=self.compression)
-        validation_dataset = tf.data.TFRecordDataset(filenames=validation_files,
-                                                     num_parallel_reads=4,
+        validation_dataset = tf.data.TFRecordDataset(filenames=self.validation_files,
+                                                     num_parallel_reads=5,
                                                      compression_type=self.compression)
         return train_dataset, validation_dataset
 
@@ -67,7 +66,7 @@ class Dataset():
                 dataset
                 .shuffle(buffer_size)
                 .batch(batch_size)
-                .map(self._prepare_example, tf.data.AUTOTUNE)
+                .map(self._prepare_example, num_parallel_calls=tf.data.AUTOTUNE)
                 .prefetch(buffer_size=tf.data.AUTOTUNE))
 
 
