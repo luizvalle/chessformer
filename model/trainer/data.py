@@ -56,7 +56,7 @@ class Dataset():
 
         train_dataset = tf.data.TFRecordDataset(filenames=train_files,
                                                compression_type=self.compression)
-        validation_dataset = tf.data.TFRecordDataset(filenames=train_files,
+        validation_dataset = tf.data.TFRecordDataset(filenames=validation_files,
                                                      compression_type=self.compression)
         return train_dataset, validation_dataset
 
