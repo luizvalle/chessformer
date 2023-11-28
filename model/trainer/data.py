@@ -24,10 +24,10 @@ class Dataset():
     def __init__(
             self, train_dataset_dir, validation_dataset_dir, compression,
             max_game_length):
-        self.train_files = [os.path.join(dataset_dir, file)
+        self.train_files = [os.path.join(train_dataset_dir, file)
                             for file in os.listdir(train_dataset_dir)]
         shuffle(self.train_files)
-        self.validation_files = [os.path.join(dataset_dir, file)
+        self.validation_files = [os.path.join(validation_dataset_dir, file)
                                  for file in os.listdir(validation_dataset_dir)]
         shuffle(self.validation_files)
         self.compression = compression
