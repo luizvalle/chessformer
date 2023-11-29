@@ -34,8 +34,8 @@ class DotProductAttention(tf.keras.layers.Layer):
         super().__init__()
         self.dropout_layer = tf.keras.layers.Dropout(rate=dropout_rate)
  
-    def call(self, queries, keys, values, training):
-        d_k = tf.cast(values.shape[-1], tf.float32)
+    def call(self, queries, keys, values, d_k, training):
+        d_k = tf.cast(d_k, tf.float32)
         scores = tf.linalg.matmul(queries, keys, transpose_b=True)
         scores /= tf.math.sqrt(d_k)
         weights = tf.nn.softmax(scores)
@@ -46,6 +46,7 @@ class DotProductAttention(tf.keras.layers.Layer):
 class MultiHeadAttention(tf.keras.layers.Layer):
     def __init__(self, num_heads, d_k, d_v, d_out, dropout_rate):
         super().__init__()
+        self.d_k = d_k
         self.num_heads = num_heads
         self.attention_layer = DotProductAttention(dropout_rate)
         # The dimension is d_k * num_heads so we can
@@ -78,7 +79,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         v_reshaped = self.reshape_qkv(self.W_v(values))
 
         output_reshaped = self.attention_layer(
-                q_reshaped, k_reshaped, v_reshaped, training)
+                q_reshaped, k_reshaped, v_reshaped, self.d_k, training)
         output = self.reshape_qkv(output_reshaped, reverse=True)
 
         return self.W_o(output)
