@@ -260,8 +260,7 @@ def main():
         print(f"Time taken: {time.time() - start_time:.2f}s")
 
     if args.model_save_dir:
-        model_save_path = f"{args.model_save_dir}/chessformer_result_classifier.weights.h5"
-        model.export(model_save_path)
+        model.export(args.model_save_dir)
 
 
 if __name__ == "__main__":
