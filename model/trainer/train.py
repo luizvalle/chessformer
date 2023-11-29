@@ -260,8 +260,8 @@ def main():
         print(f"Time taken: {time.time() - start_time:.2f}s")
 
     if args.model_save_dir:
-        model_save_path = f"{args.model_save_dir}/chessformer_result_classifier.keras"
-        model.save(model_save_path)
+        model_save_path = f"{args.model_save_dir}/chessformer_result_classifier.weights.h5"
+        model.export(model_save_path)
 
 
 if __name__ == "__main__":
