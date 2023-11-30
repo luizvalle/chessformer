@@ -3,12 +3,25 @@ import tensorflow as tf
 from trainer.utils import positional_encoding
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class InputEmbedding(tf.keras.layers.Layer):
-    def __init__(self, vocab_size, embedding_dim):
-        super().__init__()
+    def __init__(self, vocab_size, embedding_dim, **kwargs):
+        super().__init__(**kwargs)
+        self.vocab_size = vocab_size
         self.embedding_dim = embedding_dim
         self.embedding_layer = tf.keras.layers.Embedding(
             input_dim=vocab_size, output_dim=embedding_dim)
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "vocab_size": self.vocab_size,
+                "embedding_dim": self.embedding_dim,
+            }
+        )
+        return config
 
     def call(self, x):
         x = self.embedding_layer(x)
@@ -16,12 +29,24 @@ class InputEmbedding(tf.keras.layers.Layer):
         return x
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class PositionalEmbedding(tf.keras.layers.Layer):
-    def __init__(self, embedding_dim):
-        super().__init__()
+    def __init__(self, embedding_dim, **kwargs):
+        super().__init__(**kwargs)
+        self.embedding_dim = embedding_dim
         # Length has to be greater than or equal to actual sequence length
         self.positional_embedding = positional_encoding(
             length=2048, depth=embedding_dim)
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "embedding_dim": self.embedding_dim,
+            }
+        )
+        return config
         
     def call(self, x):
         sequence_length = tf.shape(x)[1]
@@ -29,10 +54,22 @@ class PositionalEmbedding(tf.keras.layers.Layer):
         return x
 
 
-class DotProductAttention(tf.keras.layers.Layer):
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
+class DotProductAttention(tf.keras.layers.Layer, **kwargs):
     def __init__(self, dropout_rate):
-        super().__init__()
+        super().__init__(**kwargs)
+        self.dropout_rate = dropout_rate
         self.dropout_layer = tf.keras.layers.Dropout(rate=dropout_rate)
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "dropout_rate": self.dropout_rate,
+            }
+        )
+        return config
  
     def call(self, queries, keys, values, d_k, training):
         d_k = tf.cast(d_k, tf.float32)
@@ -43,11 +80,15 @@ class DotProductAttention(tf.keras.layers.Layer):
         return tf.linalg.matmul(weights, values)
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class MultiHeadAttention(tf.keras.layers.Layer):
-    def __init__(self, num_heads, d_k, d_v, d_out, dropout_rate):
-        super().__init__()
-        self.d_k = d_k
+    def __init__(self, num_heads, d_k, d_v, d_out, dropout_rate, **kwargs):
+        super().__init__(**kwargs)
         self.num_heads = num_heads
+        self.d_k = d_k
+        self.d_v = d_v
+        self.d_out = d_out
+        self.dropout_rate = dropout_rate
         self.attention_layer = DotProductAttention(dropout_rate)
         # The dimension is d_k * num_heads so we can
         # perform all computations in parallel
@@ -55,6 +96,20 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         self.W_k = tf.keras.layers.Dense(d_k * num_heads)
         self.W_v = tf.keras.layers.Dense(d_v * num_heads)
         self.W_o = tf.keras.layers.Dense(d_out)
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "num_heads": self.num_heads,
+                "d_k": self.d_k,
+                "d_v": self.d_v,
+                "d_out": self.d_out,
+                "dropout_rate": self.dropout_rate,
+            }
+        )
+        return config
 
     def reshape_qkv(self, x, reverse=False):
         if not reverse:
@@ -85,13 +140,29 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         return self.W_o(output)
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class GlobalSelfAttention(tf.keras.layers.Layer):
-    def __init__(self, num_heads, d_k, dropout_rate=0.1):
-        super().__init__()
+    def __init__(self, num_heads, d_k, dropout_rate, **kwargs):
+        super().__init__(**kwargs)
+        self.num_heads = num_heads
+        self.d_k = d_k
+        self.dropout_rate = dropout_rate
         self.multihead_attention_layer = MultiHeadAttention(
                 num_heads, d_k, d_k, d_k, dropout_rate)
         self.add_layer = tf.keras.layers.Add()
         self.normalization_layer = tf.keras.layers.LayerNormalization()
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "num_heads": self.num_heads,
+                "d_k": self.d_k,
+                "dropout_rate": self.dropout_rate,
+            }
+        )
+        return config
 
     def call(self, x):
         attention_output = self.multihead_attention_layer(
@@ -101,9 +172,13 @@ class GlobalSelfAttention(tf.keras.layers.Layer):
         return x
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class FeedForward(tf.keras.layers.Layer):
-    def __init__(self, d_k, dff, dropout_rate=0.1):
-        super().__init__()
+    def __init__(self, d_k, dff, dropout_rate, **kwargs):
+        super().__init__(**kwargs)
+        self.d_k = d_k
+        self.dff = dff
+        self.dropout_rate = dropout_rate
         self.seq = tf.keras.Sequential([
             tf.keras.layers.Dense(dff, activation='relu'),
             tf.keras.layers.Dense(d_k),
@@ -112,18 +187,48 @@ class FeedForward(tf.keras.layers.Layer):
         self.add_layer = tf.keras.layers.Add()
         self.normalization_layer = tf.keras.layers.LayerNormalization()
 
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "d_k": self.d_k,
+                "dff": self.dff,
+                "dropout_rate": self.dropout_rate,
+            }
+        )
+        return config
+
     def call(self, x):
         x = self.add_layer([x, self.seq(x)])
         x = self.normalization_layer(x)
         return x
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class EncoderLayer(tf.keras.layers.Layer):
-    def __init__(self, num_heads, d_k, dff, dropout_rate=0.1):
-        super().__init__()
+    def __init__(self, num_heads, d_k, dff, dropout_rate, **kwargs):
+        super().__init__(**kwargs)
+        self.num_heads = num_heads
+        self.d_k = d_k
+        self.dff = dff
+        self.dropout_rate = dropout_rate
         self.self_attention_layer = GlobalSelfAttention(
                 num_heads, d_k, dropout_rate)
         self.ffn = FeedForward(d_k, dff)
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "num_heads": self.num_heads,
+                "d_k": self.d_k,
+                "dff": self.dff,
+                "dropout_rate": self.dropout_rate,
+            }
+        )
+        return config
 
     def call(self, x):
         x = self.self_attention_layer(x)
@@ -131,10 +236,17 @@ class EncoderLayer(tf.keras.layers.Layer):
         return x
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class Encoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, vocab_size, d_k, num_heads, dff,
-                 dropout_rate=0.1):
-        super().__init__()
+                 dropout_rate, **kwargs):
+        super().__init__(**kwargs)
+        self.num_layers = num_layers
+        self.vocab_size = vocab_size
+        self.d_k = d_k
+        self.num_heads = num_heads
+        self.dff = dff
+        self.dropout_rate = dropout_rate
         self.input_embedding_layer = InputEmbedding(vocab_size, d_k)
         self.positional_embedding_layer = PositionalEmbedding(d_k)
         self.dropout_layer = tf.keras.layers.Dropout(dropout_rate)
@@ -142,6 +254,21 @@ class Encoder(tf.keras.layers.Layer):
             EncoderLayer(num_heads, d_k, dff, dropout_rate)
             for _ in range(num_layers)
         ])
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "num_layers": self.num_layers,
+                "vocab_size": self.vocab_size,
+                "d_k": self.d_k,
+                "num_heads": self.num_heads,
+                "dff": self.dff,
+                "dropout_rate": self.dropout_rate,
+            }
+        )
+        return config
 
     def call(self, x):
         x = self.input_embedding_layer(x)
@@ -151,15 +278,29 @@ class Encoder(tf.keras.layers.Layer):
         return x
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class EloRegression(tf.keras.layers.Layer):
-    def __init__(self, dff):
-        super().__init__()
+    def __init__(self, dff, **kwargs):
+        super().__init__(**kwargs)
+        self.dff = dff
         self.hidden_layers = tf.keras.Sequential([
             tf.keras.layers.Dense(dff, activation="relu"),
+            tf.keras.layers.LayerNormalization(),
             tf.keras.layers.Dense(dff, activation="relu"),
+            tf.keras.layers.LayerNormalization(),
         ])
         # We will output two elo scores
-        self.output_layer = tf.keras.layers.Dense(2, activation="relu")
+        self.output_layer = tf.keras.layers.Dense(2)
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "dff": self.dff,
+            }
+        )
+        return config
 
     def call(self, x):
         x = self.hidden_layers(x)
@@ -167,15 +308,27 @@ class EloRegression(tf.keras.layers.Layer):
         return x
 
 
+@keras.saving.register_keras_serializable(package="ChessformerLayers")
 class ResultClassification(tf.keras.layers.Layer):
-    def __init__(self, dff):
-        super().__init__()
+    def __init__(self, dff, **kwargs):
+        super().__init__(**kwargs)
+        self.dff = dff
         self.hidden_layers = tf.keras.Sequential([
             tf.keras.layers.Dense(dff, activation="relu"),
             tf.keras.layers.Dense(dff, activation="relu"),
         ])
         # There are three possible results
         self.output_layer = tf.keras.layers.Dense(3, activation="softmax")
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "dff": self.dff,
+            }
+        )
+        return config
 
     def call(self, x):
         x = self.hidden_layers(x)
