@@ -61,7 +61,7 @@ def parse_args():
                         default=100, type=int,
                         help="After how many batches to print metric updates.")
     parser.add_argument("--epochs", dest="epochs",
-                        default=25, type=int,
+                        default=1, type=int,
                         help="Number of epochs.")
     parser.add_argument("--num_encoder_layers", dest="num_encoder_layers",
                         default=2, type=int,
