@@ -260,7 +260,21 @@ def main():
         print(f"Time taken: {time.time() - start_time:.2f}s")
 
     if args.model_save_dir:
-        model.export(args.model_save_dir)
+        exported_model_dir = f"{args.model_save_dir}/exported_model"
+        saved_model_dir = f"{args.model_save_dir}/saved_model"
+        weights_dir = f"{args.model_save_dir}/weights"
+        os.makedirs(exported_model_dir, exist_ok=True)
+        os.makedirs(saved_model_dir, exist_ok=True)
+        os.makedirs(weights_dir, exist_ok=True)
+        # Can be used for inference only, contains the forward pass
+        model.export(exported_model_dir)
+        # Types below can be used for fine-tuning
+        tf_save_path = f"{saved_model_dir}/chessformer_result_classifier.tf"
+        model.save(tf_save_path, save_format="tf")
+        keras_save_path = f"{saved_model_dir}/chessformer_result_classifier.keras"
+        model.save(keras_save_path)
+        weights_save_path = f"{weights_dir}/chessformer_result_classifier.weights.h5"
+        model.save_weights(weights_save_path)
 
 
 if __name__ == "__main__":

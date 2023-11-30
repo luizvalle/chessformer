@@ -1,3 +1,4 @@
+import keras
 import tensorflow as tf
 
 from trainer.utils import positional_encoding
@@ -55,8 +56,8 @@ class PositionalEmbedding(tf.keras.layers.Layer):
 
 
 @keras.saving.register_keras_serializable(package="ChessformerLayers")
-class DotProductAttention(tf.keras.layers.Layer, **kwargs):
-    def __init__(self, dropout_rate):
+class DotProductAttention(tf.keras.layers.Layer):
+    def __init__(self, dropout_rate, **kwargs):
         super().__init__(**kwargs)
         self.dropout_rate = dropout_rate
         self.dropout_layer = tf.keras.layers.Dropout(rate=dropout_rate)
@@ -215,7 +216,7 @@ class EncoderLayer(tf.keras.layers.Layer):
         self.dropout_rate = dropout_rate
         self.self_attention_layer = GlobalSelfAttention(
                 num_heads, d_k, dropout_rate)
-        self.ffn = FeedForward(d_k, dff)
+        self.ffn = FeedForward(d_k, dff, dropout_rate)
 
     def get_config(self):
         config = super().get_config()
