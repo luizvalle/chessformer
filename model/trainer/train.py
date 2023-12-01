@@ -41,6 +41,9 @@ def parse_args():
     parser.add_argument("--model_type", dest="model_type",
                         default="result_classifier", type=str,
                         help="Either 'result_classifier' or 'elo_regressor'.")
+    parser.add_argument("--pretrained_model_path", dest="pretrained_model_path",
+                        default=None, type=str,
+                        help="The path to the pretrained .keras model with an encoder layer to be re-used.")
     parser.add_argument("--batch_size", dest="batch_size",
                         default=128, type=int,
                         help="The batch size to use in training.")
@@ -183,6 +186,18 @@ def main():
     else:
         raise NotImplementedError(
                 "model_type can only be 'result_classifer' or 'elo_regressor'.")
+
+    if args.pretrained_model_path:
+        # Have to build the model before loading weights
+        input_dims = (args.batch_size, args.max_game_token_length)
+        model.build(input_dims)
+        trained_model = tf.keras.models.load_model(
+                args.pretrained_model_path)
+        # Assuming the first layer is the encoder
+        pretrained_encoder = trained_model.get_layer(index=0)
+        current_encoder = model.get_layer(index=0)
+        current_encoder.set_weights(pretrained_encoder.get_weights())
+        print(f"Loaded encoder from '{args.pretrained_model_path}'.")
 
     learning_rate = CustomSchedule(
             args.embedding_dim, warmup_steps=args.learning_rate_warmup_steps)
