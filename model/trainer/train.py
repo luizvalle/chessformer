@@ -5,7 +5,6 @@ import sys
 import datetime
 import time
 
-from tensorflow.python.client import device_lib
 from trainer.data import Dataset
 from trainer.model import ChessformerResultClassifier
 
@@ -39,6 +38,9 @@ def parse_args():
     parser.add_argument("--compression", dest="compression",
                         default="", type=str,
                         help="The compression used by the dataset.")
+    parser.add_argument("--model_type", dest="model_type",
+                        default="result_classifier", type=str,
+                        help="Either 'result_classifier' or 'elo_regressor'.")
     parser.add_argument("--batch_size", dest="batch_size",
                         default=128, type=int,
                         help="The batch size to use in training.")
@@ -57,12 +59,15 @@ def parse_args():
     parser.add_argument("--tensorboard_log_dir", dest="tensorboard_log_dir",
                         default=os.getenv("AIP_TENSORBOARD_LOG_DIR"), type=str,
                         help="The location to save the training logs.")
-    parser.add_argument("--batch_log_frequency", dest="batch_log_frequency",
-                        default=100, type=int,
-                        help="After how many batches to print metric updates.")
+    parser.add_argument("--checkpoint_step_frequency", dest="checkpoint_step_frequency",
+                        default=500, type=int,
+                        help="After how many steps to save checkpoints.")
     parser.add_argument("--epochs", dest="epochs",
                         default=1, type=int,
                         help="Number of epochs.")
+    parser.add_argument("--learning_rate_warmup_steps", dest="learning_rate_warmup_steps",
+                        default=4000, type=int,
+                        help="Number of training steps before the learning rate starts to decrease.")
     parser.add_argument("--num_encoder_layers", dest="num_encoder_layers",
                         default=2, type=int,
                         help="Number of encoder layers.")
@@ -90,31 +95,33 @@ def parse_args():
 
 @tf.function
 def train_step(
-        moves, true_results, model, loss_fn, optimizer,
-        cumulative_acc_metric, cumulative_loss_metric):
+        moves, true_labels, model, loss_fn, optimizer, cumulative_metrics,
+        additional_batch_metrics):
     with tf.GradientTape() as tape:
-        predicted_results = model(moves, training=True)
-        loss_value = loss_fn(true_results, predicted_results)
+        predicted_labels = model(moves, training=True)
+        loss_value = loss_fn(true_labels, predicted_labels)
     grads = tape.gradient(loss_value, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
-    cumulative_acc_metric.update_state(true_results, predicted_results)
-    cumulative_loss_metric.update_state(true_results, predicted_results)
-    batch_accuracy = tf.keras.metrics.categorical_accuracy(
-            true_results, predicted_results)
-    return loss_value, tf.math.reduce_mean(batch_accuracy)
+    for metric in cumulative_metrics.values():
+        metric.update_state(true_labels, predicted_labels)
+    batch_metrics = {"batch_loss": loss_value}
+    for metric_name, metric in additional_batch_metrics.items():
+        batch_metrics[metric_name] = metric(true_results, predicted_results)
+    return batch_metrics
 
 
 @tf.function
 def val_step(
-        moves, true_results, model, loss_fn, cumulative_acc_metric,
-        cumulative_loss_metric):
-    predicted_results = model(moves, training=False)
-    loss_value = loss_fn(true_results, predicted_results)
-    cumulative_acc_metric.update_state(true_results, predicted_results)
-    cumulative_loss_metric.update_state(true_results, predicted_results)
-    batch_accuracy = tf.keras.metrics.categorical_accuracy(
-            true_results, predicted_results)
-    return loss_value, tf.math.reduce_mean(batch_accuracy)
+        moves, true_labels, model, loss_fn, cumulative_metrics,
+        additional_batch_metrics):
+    predicted_labels = model(moves, training=False)
+    loss_value = loss_fn(true_labels, predicted_labels)
+    for metric in cumulative_metrics.values():
+        metric.update_state(true_labels, predicted_labels)
+    batch_metrics = {"batch_loss": loss_value}
+    for metric_name, metric in additional_batch_metrics.items():
+        batch_metrics[metric_name] = metric(true_results, predicted_results)
+    return batch_metrics
 
 
 def main():
@@ -137,24 +144,50 @@ def main():
 
     vocab_size = dataset.get_vocab_size()
 
-    model = ChessformerResultClassifier(
-            num_layers=args.num_encoder_layers,
-            vocab_size=vocab_size,
-            d_k=args.embedding_dim,
-            num_heads=args.num_attention_heads,
-            encoder_dff=args.encoder_feed_forward_dim,
-            classifier_dff=args.head_feed_forward_dim,
-            dropout_rate=args.dropout_rate)
+    if args.model_type == "result_classifier":
+        model = ChessformerResultClassifier(
+                num_layers=args.num_encoder_layers,
+                vocab_size=vocab_size,
+                d_k=args.embedding_dim,
+                num_heads=args.num_attention_heads,
+                encoder_dff=args.encoder_feed_forward_dim,
+                classifier_dff=args.head_feed_forward_dim,
+                dropout_rate=args.dropout_rate)
+        loss_fn = tf.keras.losses.CategoricalCrossentropy(
+                reduction=SUM_OVER_BATCH_SIZE)
+        cumulative_metrics = {
+                "accuracy": tf.keras.metrics.CategoricalAccuracy(),
+                "loss": tf.keras.metrics.CategoricalAccuracy(),
+                }
+        additional_batch_metrics = {
+                "batch_accuracy": lambda true_labels, predicted_labels:
+                tf.math.reduce.mean(tf.keras.metrics.caterogical_accuracy(true_labels, predicted_labels))
+                }
+    elif args.model_type == "elo_regressor":
+        model = ChessformerEloRegressor(
+                num_layers=args.num_encoder_layers,
+                vocab_size=vocab_size,
+                d_k=args.embedding_dim,
+                num_heads=args.num_attention_heads,
+                encoder_dff=args.encoder_feed_forward_dim,
+                regressor_dff=args.head_feed_forward_dim,
+                dropout_rate=args.dropout_rate)
+        loss_fn = tf.keras.losses.MeanSquaredError(
+                reduction=SUM_OVER_BATCH_SIZE)
+        cumulative_metrics = {
+                "cumulative_batch_loss": tf.keras.metrics.MeanSquaredError(),
+                }
+        # No metric besides loss, which is already computed, is needed
+        additional_batch_metrics = dict()
+    else:
+        raise NotImplementedError(
+                "model_type can only be 'result_classifer' or 'elo_regressor'.")
 
-    learning_rate = CustomSchedule(args.embedding_dim)
+    learning_rate = CustomSchedule(
+            args.embedding_dim, warmup_steps=args.learning_rate_warmup_steps)
     optimizer = tf.keras.optimizers.Adam(
             learning_rate, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
-    loss_fn = tf.keras.losses.CategoricalCrossentropy(
-            reduction=SUM_OVER_BATCH_SIZE)
-
-    cumulative_acc_metric = tf.keras.metrics.CategoricalAccuracy()
-    cumulative_loss_metric = tf.keras.metrics.CategoricalCrossentropy()
 
     save_logs = args.tensorboard_log_dir is not None
     if save_logs:
@@ -192,71 +225,71 @@ def main():
 
         # Iterate over the batches of the dataset.
         for step, (moves, true_elos, true_results) in enumerate(train_dataset):
-            batch_loss, batch_accuracy = train_step(
-                    moves, true_results, model, loss_fn, optimizer,
-                    cumulative_acc_metric, cumulative_loss_metric)
+            if args.model_type == "result_classifier":
+                true_labels = true_results
+            elif args.model_type == "elo_regressor":
+                true_labels = true_elos
+            batch_metrics = train_step(
+                    moves, true_labels, model, loss_fn, optimizer,
+                    cumulative_metrics, additional_batch_metrics)
 
-            if step % args.batch_log_frequency == 0:
-                print(
-                    f"Training loss (for one batch) at step {step}: {float(batch_loss):.4f}")
-                print(f"Seen so far: {(step + 1) * args.batch_size} samples")
-                if save_checkpoints:
-                    checkpoint_manager.save()
+            if step % args.checkpoint_step_frequency == 0 and save_checkpoints:
+                checkpoint_manager.save()
 
             if save_logs:
-                accuracy = cumulative_acc_metric.result()
-                loss = cumulative_loss_metric.result()
                 with train_batch_summary_writer.as_default():
-                    tf.summary.scalar(
-                            "cumulative_batch_accuracy", accuracy, step=step)
-                    tf.summary.scalar(
-                            "cumulative_batch_loss", loss, step=step)
-                    tf.summary.scalar(
-                            "batch_accuracy", batch_accuracy, step=step)
-                    tf.summary.scalar(
-                            "batch_loss", batch_loss, step=step)
+                    for metric_name, metric in cumulative_metrics.items():
+                        tf.summary.scalar(
+                                f"cumulative_batch_{metric_name}",
+                                metric.result(),
+                                step=step)
+                    for metric_name, metric_value in additional_batch_metrics.items():
+                        tf.summary.scalar(
+                                metric_name, metric_value, step=step)
 
-        # Display metrics at the end of each epoch.
-        accuracy = cumulative_acc_metric.result()
-        loss = cumulative_loss_metric.result()
-        print(f"Training accuracy over epoch: {accuracy:.4f}")
+        # Save metrics at the end of each epoch.
         if save_logs:
             with train_epoch_summary_writer.as_default():
-                tf.summary.scalar(
-                        "epoch_accuracy", accuracy, step=epoch)
-                tf.summary.scalar(
-                        "epoch_loss", loss, step=epoch)
+                for metric_name, metric in cumulative_metrics.items():
+                    tf.summary.scalar(
+                            f"epoch_{metric_name}", metric.result(),
+                            step=epoch)
 
         # Reset training metrics at the end of each epoch
-        cumulative_acc_metric.reset_states()
-        cumulative_loss_metric.reset_states()
+        for metric in cumulative_metrics.values():
+            metric.reset_states()
 
         # Run a validation loop at the end of each epoch.
         for step, (moves, true_elos, true_results) in enumerate(val_dataset):
-            batch_loss, batch_accuracy = val_step(
-                    moves, true_results, model, loss_fn, cumulative_acc_metric,
-                    cumulative_loss_metric)
+            if args.model_type == "result_classifier":
+                true_labels = true_results
+            elif args.model_type == "elo_regressor":
+                true_labels = true_elos
+            batch_metrics = val_step(
+                    moves, true_labels, model, loss_fn, cumulative_metrics,
+                    additional_batch_metrics)
             if save_logs:
                 accuracy = cumulative_acc_metric.result()
                 loss = cumulative_loss_metric.result()
                 with val_batch_summary_writer.as_default():
-                    tf.summary.scalar(
-                            "cumulative_batch_accuracy", accuracy, step=step)
-                    tf.summary.scalar(
-                            "cumulative_batch_loss", loss, step=step)
-                    tf.summary.scalar(
-                            "batch_accuracy", batch_accuracy, step=step)
-                    tf.summary.scalar(
-                            "batch_loss", batch_loss, step=step)
+                    for metric_name, metric in cumulative_metrics.items():
+                        tf.summary.scalar(
+                                f"cumulative_batch_{metric_name}",
+                                metric.result(),
+                                step=step)
+                    for metric_name, metric_value in additional_batch_metrics.items():
+                        tf.summary.scalar(
+                                metric_name, metric_value, step=step)
 
-        accuracy = cumulative_acc_metric.result()
-        loss = cumulative_loss_metric.result()
         if save_logs:
             with val_epoch_summary_writer.as_default():
-                tf.summary.scalar("epoch_accuracy", accuracy, step=epoch)
-                tf.summary.scalar("epoch_loss", loss, step=epoch)
-        cumulative_acc_metric.reset_states()
-        cumulative_loss_metric.reset_states()
+                for metric_name, metric in cumulative_metrics.items():
+                    tf.summary.scalar(
+                            f"epoch_{metric_name}", metric.result(),
+                            step=epoch)
+
+        for metric in cumulative_metrics.values():
+            metric.reset_states()
         print(f"Time taken: {time.time() - start_time:.2f}s")
 
     if args.model_save_dir:
