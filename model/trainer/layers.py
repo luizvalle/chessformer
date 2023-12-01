@@ -1,10 +1,9 @@
-import keras
 import tensorflow as tf
 
 from trainer.utils import positional_encoding
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class InputEmbedding(tf.keras.layers.Layer):
     def __init__(self, vocab_size, embedding_dim, **kwargs):
         super().__init__(**kwargs)
@@ -30,7 +29,7 @@ class InputEmbedding(tf.keras.layers.Layer):
         return x
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class PositionalEmbedding(tf.keras.layers.Layer):
     def __init__(self, embedding_dim, **kwargs):
         super().__init__(**kwargs)
@@ -55,7 +54,7 @@ class PositionalEmbedding(tf.keras.layers.Layer):
         return x
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class DotProductAttention(tf.keras.layers.Layer):
     def __init__(self, dropout_rate, **kwargs):
         super().__init__(**kwargs)
@@ -81,7 +80,7 @@ class DotProductAttention(tf.keras.layers.Layer):
         return tf.linalg.matmul(weights, values)
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class MultiHeadAttention(tf.keras.layers.Layer):
     def __init__(self, num_heads, d_k, d_v, d_out, dropout_rate, **kwargs):
         super().__init__(**kwargs)
@@ -141,7 +140,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         return self.W_o(output)
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class GlobalSelfAttention(tf.keras.layers.Layer):
     def __init__(self, num_heads, d_k, dropout_rate, **kwargs):
         super().__init__(**kwargs)
@@ -173,7 +172,7 @@ class GlobalSelfAttention(tf.keras.layers.Layer):
         return x
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class FeedForward(tf.keras.layers.Layer):
     def __init__(self, d_k, dff, dropout_rate, **kwargs):
         super().__init__(**kwargs)
@@ -206,7 +205,7 @@ class FeedForward(tf.keras.layers.Layer):
         return x
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class EncoderLayer(tf.keras.layers.Layer):
     def __init__(self, num_heads, d_k, dff, dropout_rate, **kwargs):
         super().__init__(**kwargs)
@@ -237,7 +236,7 @@ class EncoderLayer(tf.keras.layers.Layer):
         return x
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class Encoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, vocab_size, d_k, num_heads, dff,
                  dropout_rate, **kwargs):
@@ -279,7 +278,7 @@ class Encoder(tf.keras.layers.Layer):
         return x
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class EloRegression(tf.keras.layers.Layer):
     def __init__(self, dff, **kwargs):
         super().__init__(**kwargs)
@@ -309,7 +308,7 @@ class EloRegression(tf.keras.layers.Layer):
         return x
 
 
-@keras.saving.register_keras_serializable(package="ChessformerLayers")
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class ResultClassification(tf.keras.layers.Layer):
     def __init__(self, dff, **kwargs):
         super().__init__(**kwargs)
