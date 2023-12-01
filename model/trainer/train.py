@@ -6,7 +6,7 @@ import datetime
 import time
 
 from trainer.data import Dataset
-from trainer.model import ChessformerResultClassifier
+from trainer.model import ChessformerResultClassifier, ChessformerEloRegressor
 
 
 # Training loop parameters
