@@ -270,8 +270,6 @@ def main():
                     moves, true_labels, model, loss_fn, cumulative_metrics,
                     additional_batch_metrics)
             if save_logs:
-                accuracy = cumulative_acc_metric.result()
-                loss = cumulative_loss_metric.result()
                 with val_batch_summary_writer.as_default():
                     for metric_name, metric in cumulative_metrics.items():
                         tf.summary.scalar(
