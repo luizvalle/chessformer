@@ -106,7 +106,7 @@ def train_step(
         metric.update_state(true_labels, predicted_labels)
     batch_metrics = {"batch_loss": loss_value}
     for metric_name, metric in additional_batch_metrics.items():
-        batch_metrics[metric_name] = metric(true_results, predicted_results)
+        batch_metrics[metric_name] = metric(true_labels, predicted_labels)
     return batch_metrics
 
 
@@ -120,7 +120,7 @@ def val_step(
         metric.update_state(true_labels, predicted_labels)
     batch_metrics = {"batch_loss": loss_value}
     for metric_name, metric in additional_batch_metrics.items():
-        batch_metrics[metric_name] = metric(true_results, predicted_results)
+        batch_metrics[metric_name] = metric(true_labels, predicted_labels)
     return batch_metrics
 
 
@@ -161,7 +161,8 @@ def main():
                 }
         additional_batch_metrics = {
                 "batch_accuracy": lambda true_labels, predicted_labels:
-                tf.math.reduce.mean(tf.keras.metrics.caterogical_accuracy(true_labels, predicted_labels))
+                tf.math.reduce_mean(tf.keras.metrics.categorical_accuracy(
+                    true_labels, predicted_labels))
                 }
     elif args.model_type == "elo_regressor":
         model = ChessformerEloRegressor(
@@ -243,7 +244,7 @@ def main():
                                 f"cumulative_batch_{metric_name}",
                                 metric.result(),
                                 step=step)
-                    for metric_name, metric_value in additional_batch_metrics.items():
+                    for metric_name, metric_value in batch_metrics.items():
                         tf.summary.scalar(
                                 metric_name, metric_value, step=step)
 
@@ -277,7 +278,7 @@ def main():
                                 f"cumulative_batch_{metric_name}",
                                 metric.result(),
                                 step=step)
-                    for metric_name, metric_value in additional_batch_metrics.items():
+                    for metric_name, metric_value in batch_metrics.items():
                         tf.summary.scalar(
                                 metric_name, metric_value, step=step)
 
