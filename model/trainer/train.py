@@ -63,7 +63,7 @@ def parse_args():
                         default=os.getenv("AIP_TENSORBOARD_LOG_DIR"), type=str,
                         help="The location to save the training logs.")
     parser.add_argument("--checkpoint_step_frequency", dest="checkpoint_step_frequency",
-                        default=500, type=int,
+                        default=100, type=int,
                         help="After how many steps to save checkpoints.")
     parser.add_argument("--epochs", dest="epochs",
                         default=1, type=int,
