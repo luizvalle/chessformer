@@ -317,11 +317,20 @@ def main():
         model.export(exported_model_dir)
         # Types below can be used for fine-tuning
         tf_save_path = f"{saved_model_dir}/chessformer_result_classifier.tf"
-        model.save(tf_save_path, save_format="tf")
+        try:
+            model.save(tf_save_path, save_format="tf")
+        except Exception as e:
+            pass
         keras_save_path = f"{saved_model_dir}/chessformer_result_classifier.keras"
-        model.save(keras_save_path)
+        try:
+            model.save(keras_save_path)
+        except Exception as e:
+            pass
         weights_save_path = f"{weights_dir}/chessformer_result_classifier.weights.h5"
-        model.save_weights(weights_save_path)
+        try:
+            model.save_weights(weights_save_path)
+        except Exception as e:
+            pass
 
 
 if __name__ == "__main__":
