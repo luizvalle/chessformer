@@ -309,6 +309,34 @@ class EloRegression(tf.keras.layers.Layer):
 
 
 @tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
+class EloRegressionV2(tf.keras.layers.Layer):
+    def __init__(self, dff, **kwargs):
+        super().__init__(**kwargs)
+        self.dff = dff
+        self.hidden_layers = tf.keras.Sequential([
+            tf.keras.layers.Dense(dff, activation="relu"),
+            tf.keras.layers.Dense(dff, activation="relu"),
+        ])
+        # We will output two elo scores
+        self.output_layer = tf.keras.layers.Dense(2)
+
+    def get_config(self):
+        config = super().get_config()
+        # Update the config with the custom layer's parameters
+        config.update(
+            {
+                "dff": self.dff,
+            }
+        )
+        return config
+
+    def call(self, x):
+        x = self.hidden_layers(x)
+        x = self.output_layer(x)
+        return x
+
+
+@tf.keras.saving.register_keras_serializable(package="ChessformerLayers")
 class ResultClassification(tf.keras.layers.Layer):
     def __init__(self, dff, **kwargs):
         super().__init__(**kwargs)

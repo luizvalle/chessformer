@@ -6,7 +6,7 @@ import datetime
 import time
 
 from trainer.data import Dataset
-from trainer.model import ChessformerResultClassifier, ChessformerEloRegressor
+from trainer.model import ChessformerResultClassifier, ChessformerEloRegressor, ChessformerEloRegressorV2
 
 
 # Training loop parameters
@@ -169,6 +169,22 @@ def main():
                 }
     elif args.model_type == "elo_regressor":
         model = ChessformerEloRegressor(
+                num_layers=args.num_encoder_layers,
+                vocab_size=vocab_size,
+                d_k=args.embedding_dim,
+                num_heads=args.num_attention_heads,
+                encoder_dff=args.encoder_feed_forward_dim,
+                regressor_dff=args.head_feed_forward_dim,
+                dropout_rate=args.dropout_rate)
+        loss_fn = tf.keras.losses.MeanSquaredError(
+                reduction=SUM_OVER_BATCH_SIZE)
+        cumulative_metrics = {
+                "cumulative_batch_loss": tf.keras.metrics.MeanSquaredError(),
+                }
+        # No metric besides loss, which is already computed, is needed
+        additional_batch_metrics = dict()
+    elif args.model_type == "elo_regressor_v2":
+        model = ChessformerEloRegressorV2(
                 num_layers=args.num_encoder_layers,
                 vocab_size=vocab_size,
                 d_k=args.embedding_dim,
