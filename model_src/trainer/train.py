@@ -179,7 +179,7 @@ def main():
         loss_fn = tf.keras.losses.MeanSquaredError(
                 reduction=SUM_OVER_BATCH_SIZE)
         cumulative_metrics = {
-                "cumulative_batch_loss": tf.keras.metrics.MeanSquaredError(),
+                "batch_loss": tf.keras.metrics.MeanSquaredError(),
                 }
         # No metric besides loss, which is already computed, is needed
         additional_batch_metrics = dict()
@@ -259,7 +259,7 @@ def main():
         for step, (moves, true_elos, true_results) in enumerate(train_dataset):
             if args.model_type == "result_classifier":
                 true_labels = true_results
-            elif args.model_type == "elo_regressor":
+            elif args.model_type in {"elo_regressor", "elo_regressor_v2"}:
                 true_labels = true_elos
             batch_metrics = train_step(
                     moves, true_labels, model, loss_fn, optimizer,
@@ -295,7 +295,7 @@ def main():
         for step, (moves, true_elos, true_results) in enumerate(val_dataset):
             if args.model_type == "result_classifier":
                 true_labels = true_results
-            elif args.model_type == "elo_regressor":
+            elif args.model_type in {"elo_regressor", "elo_regressor_v2"}:
                 true_labels = true_elos
             batch_metrics = val_step(
                     moves, true_labels, model, loss_fn, cumulative_metrics,
