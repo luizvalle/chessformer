@@ -131,7 +131,7 @@ database.
 Same as `download_game_data.py` put for just a single file from the database.
 database.
 * [chess_iterators.py](helper_scripts/download_data/chess_iterators.py): Helper
-modulevthat contains the classes to iterate through the games in the database.
+module that contains the code to iterate through the games in the database.
 Used by the download scripts above.
 * [gdrive.py](helper_scripts/download_data/gdrive.py): Helper module that
 contains the abstractions to save files to Google Drive.
