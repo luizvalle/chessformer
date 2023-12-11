@@ -14,11 +14,10 @@ The models are implemented using [TensorFlow](https://www.tensorflow.org/).
 
 The Python packages needed to run the project are listed in the
 [requirements.txt](./requirements.txt) file. To install all the packages, run
-the following command.
+the following command (assuming the command in run from the root of the
+repository):
 
 ```sh
-git clone git@github.com:luizvalle/chessformer.git
-cd chessformer
 pip install -r requirements.txt
 ```
 
@@ -41,7 +40,7 @@ and preprocessing the training data.
 * [utils.py](model_src/trainer/utils.py): Contains helper functions used in the
 other modules.
 
-The [model_src](model_src/) directory contains two files:
+The [model_src/](model_src/) directory contains two files:
 
 * [setup.py](model_src/setup.py): This is needed to setup the package structure
 correctly and to package the training code to run on Google Cloud's [Vertex
@@ -110,3 +109,39 @@ too large. However, a toy dataset is included in
 The notebooks used to analyze the results can be found in
 [notebooks/](notebooks/). Note that some cells may not work as the data is not
 included in the repository.
+
+
+## Helper scripts
+
+The [helper_scripts/](helper_scripts/) contains some Python scripts used to
+download the training data from the
+[Lichess database](https://database.lichess.org/) and then prepare this data
+to train with TensorFlow (i.e. convert the data to TFRecord files).
+
+The [helper_scripts/download_data/](helper_scripts/download_data) directory
+contains the following files:
+
+* [download_game_metadata.py](helper_scripts/download_data/download_game_metadata.py):
+Script to download only the game metadata (i.e. excluding moves) from all files
+in the database.
+* [download_game_data.py](helper_scripts/download_data/download_game_data.py):
+Script to download only the full game data for select types of games from the 
+database.
+* [download_game_data_from_single_file.py](helper_scripts/download_data/download_game_data_from_single_file.py):
+Same as `download_game_data.py` put for just a single file from the database.
+database.
+* [chess_iterators.py](helper_scripts/download_data/chess_iterators.py): Helper
+modulevthat contains the classes to iterate through the games in the database.
+Used by the download scripts above.
+* [gdrive.py](helper_scripts/download_data/gdrive.py): Helper module that
+contains the abstractions to save files to Google Drive.
+
+The [helper_scripts/preprocess_data/](helper_scripts/preprocess_data/)
+directory contains a script to convert the data downloaded using the scripts
+in `download_data/` to TFRecord files that can be used in the training pipeline.
+
+* [prepare_dataset.py](helper_scripts/preprocess_data/prepare_dataset.py): The
+entry point for the script.
+* [parquet_iterator.py](helper_scripts/preprocess_data/parquet_iterator.py):
+Helper module that contains the logic to iterate through a Parquet file. Used
+by the main script.

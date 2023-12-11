@@ -1,7 +1,3 @@
-# Usage: python3 download_game_data.py
-# 
-# Iterates through the games in the PGN files and constructs a dataframe from
-# them. This dataframe is then stored in Google Drive.
 import pandas as pd
 import numpy as np
 import pyarrow as pa
