@@ -246,7 +246,6 @@ def main():
             print("No checkpoint found.")
 
     for epoch in range(args.epochs):
-        print(f"\nStart of epoch {epoch}")
         start_time = time.time()
 
         if save_logs:
