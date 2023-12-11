@@ -1,3 +1,5 @@
+# Inspiration taken from https://www.tensorflow.org/text/tutorials/transformer
+# and https://machinelearningmastery.com/how-to-implement-multi-head-attention-from-scratch-in-tensorflow-and-keras/
 import tensorflow as tf
 
 from trainer.utils import positional_encoding
