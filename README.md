@@ -12,15 +12,14 @@ The models are implemented using [TensorFlow](https://www.tensorflow.org/).
 
 ## Sample results
 
-![result classification confusion matrix](images/result_classification_confusion_matrix.png)
+<img src="images/result_classification_confusion_matrix.png" width=500>
 
 For all the results, see the [report](report/chessformer_report.pdf).
 
 
 ## General model architecture
 
-
-![general model architecture diagram](images/general_transformer_diagram.png)
+<img src="images/general_transformer_diagram.png" width=500>
 
 
 ## Install the dependencies
