@@ -117,6 +117,14 @@ too large. However, a toy dataset is included in
 [data/dataset](data/dataset) for illustration purposes.
 
 
+## Trained model weights
+
+The trained model weights can be found in [model_artifacts/](model_artifacts/).
+
+For examples of how to load them, see
+[notebooks/trained_models_analysis.ipynb](notebooks/trained_models_analysis.ipynb).
+
+
 ## Notebooks
 
 The notebooks used to analyze the results can be found in
