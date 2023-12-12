@@ -10,6 +10,19 @@ including results, see the [report](report/chessformer_report.pdf).
 The models are implemented using [TensorFlow](https://www.tensorflow.org/).
 
 
+## Sample results
+
+![result classification confusion matrix](images/result_classification_confusion_matrix.png)
+
+For all the results, see the [report](report/chessformer_report.pdf).
+
+
+## General model architecture
+
+
+![general model architecture diagram](images/general_transformer_diagram.png)
+
+
 ## Install the dependencies
 
 The Python packages needed to run the project are listed in the
